@@ -3,13 +3,14 @@
 
 import { MouseEventHandler, useEffect, useRef, useState } from "react";
 import { ThingComponent } from "./Thing";
-import { getThing, Thing } from "@/lib/objax";
+import { getThing, getValue, Thing } from "@/lib/objax";
 import TextareaAutosize from "react-textarea-autosize";
 import { ThingList } from "./ThingList";
 import { FiMenu } from "react-icons/fi";
 import { getAblyClient } from "@/lib/ably/client";
 
 export function Canvas() {
+  const [parseError, setParseError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Thing | null>(null);
   const [things, setThings] = useState<Thing[]>([]);
   const latestThingsRef = useRef<Thing[]>(things);
@@ -105,7 +106,6 @@ export function Canvas() {
   }) => {
     if (upserts.length === 0 && deletes.length === 0) return;
     try {
-      console.log(upserts);
       const res = await fetch("/api/objects", {
         method: "POST",
         headers: {
@@ -173,8 +173,9 @@ export function Canvas() {
         let result;
         try {
           result = getThing(code);
+          setParseError(null);
         } catch (e) {
-          console.log(e);
+          setParseError(String(e));
         }
         if (!result) {
           return { ...p, code };
@@ -447,6 +448,114 @@ export function Canvas() {
   const [isSyntaxOpen, setIsSyntaxOpen] = useState(false);
   // no file import/export in global mode
 
+  // Interval-driven actions: onIntervalWith{N}ms is <Thing.Transition>
+  useEffect(() => {
+    // Build interval config from current things
+    type IntervalTask = {
+      ms: number;
+      thingId: string;
+      ea: NonNullable<Thing["eventActions"]>[number];
+    };
+
+    const tasks: IntervalTask[] = [];
+    for (const t of things) {
+      const eas = Array.isArray(t.eventActions) ? t.eventActions : [];
+      for (const ea of eas) {
+        const name = ea?.name?.name || "";
+        const m = name.match(/intervalwith(\d+)ms/);
+        if (!m) continue;
+        const ms = Number(m[1]);
+        if (!Number.isFinite(ms) || ms <= 0) continue;
+        tasks.push({ ms, thingId: t.id!, ea });
+      }
+    }
+
+    if (tasks.length === 0) return; // nothing to do
+
+    // Group tasks by interval
+    const byMs = new Map<number, IntervalTask[]>();
+    for (const task of tasks) {
+      const arr = byMs.get(task.ms) || [];
+      arr.push(task);
+      byMs.set(task.ms, arr);
+    }
+
+    // Keep handles to clear on changes
+    const handles: any[] = [];
+
+    const runBatch = (batch: IntervalTask[]) => {
+      // Compute all updates from this tick before applying
+      const changes: {
+        ea: IntervalTask["ea"];
+        fieldThingName: string;
+        fieldName: string;
+        nextValue: any;
+      }[] = [];
+
+      const cur = latestThingsRef.current;
+
+      for (const { ea } of batch) {
+        // Reuse the same logic as click handler: find transition, target field, and next state
+        const trThing = ea.transition.path[0]?.name;
+        const trName = ea.transition.path[1]?.name;
+        if (!trThing || !trName) continue;
+        const transition = cur
+          .find((tt) => tt.name === trThing)
+          ?.transitions?.find((tr) => tr.name.name === trName);
+        if (!transition) continue;
+        const fieldThing = transition.field.path[0]?.name;
+        const fieldName = transition.field.path[1]?.name;
+        if (!fieldThing || !fieldName) continue;
+        const field = cur
+          .find((tt) => tt.name === fieldThing)
+          ?.fields?.find((f) => f.name.name === fieldName);
+        if (!field) continue;
+        const idx = transition.states.findIndex(
+          (st) => getValue(cur, st) === getValue(cur, field.value)
+        );
+        const nextIndex =
+          idx === -1 ? 0 : idx < transition.states.length - 1 ? idx + 1 : 0;
+        const nextValue = transition.states[nextIndex];
+        changes.push({ ea, fieldThingName: fieldThing, fieldName, nextValue });
+      }
+
+      if (changes.length === 0) return;
+
+      // Apply changes
+      const updatedList: Thing[] = [];
+      const nextThings = latestThingsRef.current.map((p) => {
+        const target = changes.find((c) => p.name === c.fieldThingName);
+        if (!target) return p;
+        const updated: Thing = {
+          ...p,
+          fields: (p.fields || []).map((f) =>
+            f.name.name === target.fieldName
+              ? { ...f, value: target.nextValue }
+              : f
+          ),
+        };
+        updatedList.push(updated);
+        return updated;
+      });
+
+      // Update state and persist/broadcast
+      setThings(nextThings);
+      if (updatedList.length) {
+        publishUpdate({ upserts: updatedList });
+        schedulePersist({ things: updatedList });
+      }
+    };
+
+    for (const [ms, batch] of byMs.entries()) {
+      const h = setInterval(() => runBatch(batch), ms);
+      handles.push(h);
+    }
+
+    return () => {
+      handles.forEach((h) => clearInterval(h));
+    };
+  }, [publishUpdate, schedulePersist, things]);
+
   const getAbsolutePos = (
     t: Thing,
     seen = new Set<string>()
@@ -586,6 +695,11 @@ export function Canvas() {
                 minRows={10}
                 maxRows={10}
               />
+              {parseError && (
+                <div className="border border-red-400 bg-red-50 rounded p-2 mt-1 mb-2">
+                  {parseError}
+                </div>
+              )}
               <div className="gap-2 mb-2 flex items-center">
                 <button
                   className="border bg-white px-4 py-1 rounded border-gray-300"
@@ -627,7 +741,7 @@ export function Canvas() {
       </button>
       <button
         onClick={() => setIsSyntaxOpen(true)}
-        className="fixed bottom-24 right-6 cursor-pointer hover:bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center bg-gray-50 shadow-lg border border-gray-300 text-base"
+        className="fixed bottom-20 right-6 cursor-pointer hover:bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center bg-gray-50 shadow-lg border border-gray-300 text-base"
         title="View syntax"
         type="button"
       >
@@ -635,7 +749,7 @@ export function Canvas() {
       </button>
 
       {isSyntaxOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 z-1000 flex items-end sm:items-center justify-center">
           <div
             className="absolute inset-0 bg-black/30"
             onClick={() => setIsSyntaxOpen(false)}
@@ -663,8 +777,8 @@ export function Canvas() {
                   {`<Name> is <Value>
 duplicate <Name>
 sticky <Name>
-on <Event> do <Reference>
-transition <Name> [<Value>, <Value>, ...] on <Reference>
+on <Event> is <Reference>
+transition <Name> of <Reference> is [<Value>, <Value>, ...]
 if <Condition> then <Statement>
 `}
                 </pre>
@@ -718,8 +832,9 @@ if <Condition> then <Statement>
 count is 1
 sticky Parent
 duplicate Original
-on click do action.run
-transition State ["idle", "running"] on input.state
+on click is action.run
+onIntervalWith1000ms is Timer.second
+transition State of input.state is ["idle", "running"]
 if count eq 1 then title is "Once"`}
                 </pre>
               </div>

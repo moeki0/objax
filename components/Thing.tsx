@@ -173,7 +173,6 @@ export function ThingComponent({
           if (now - lastEmitRef.current > 60) {
             lastEmitRef.current = now;
             try {
-              console.log(thing);
               onGeometryChange(thing.id!, thing);
             } catch {}
           }

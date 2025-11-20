@@ -18,12 +18,8 @@ export function ThingList({
   const [query, setQuery] = useState("");
   const fuse = useMemo(() => new Fuse(things, fuseOptions), [things]);
   const filtered = useMemo(() => {
-    if (query.length > 0) {
-      return fuse.search(query).map((s) => s.item);
-    } else {
-      return things;
-    }
-  }, [fuse, query, things]);
+    return fuse.search(query).map((s) => s.item);
+  }, [fuse, query]);
 
   return (
     <div className="mt-3">
