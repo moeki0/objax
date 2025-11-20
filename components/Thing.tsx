@@ -342,6 +342,9 @@ export function ThingComponent({
     if (t.value.type === "String") {
       return t.value.value;
     }
+    if (t.value.type === "Integer") {
+      return t.value;
+    }
     if (t.value.type === "Reference") {
       const field = getField(
         things,
@@ -398,7 +401,7 @@ export function ThingComponent({
         onClick={handleClick}
       >
         <div className="flex justify-center flex-col gap-2 items-center h-full w-full p-1">
-          {text}
+          {String(text)}
           {image && (
             // eslint-disable-next-line @next/next/no-img-element
             <img

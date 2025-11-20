@@ -26,7 +26,7 @@ export const generateStyle = ({
   if (value === "card") {
     return {
       boxShadow: "1px 1px rgba(0,0,0,0.2)",
-      border: `double 10px ${borderColor}`,
+      border: `1px solid ${borderColor}`,
       background: String(bgColor),
       color: String(textColor),
     };

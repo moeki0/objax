@@ -444,6 +444,7 @@ export function Canvas() {
 
   const bgRef = useRef<HTMLDivElement>(null);
   const [isWindowOpen, setIsWindowOpen] = useState(false);
+  const [isSyntaxOpen, setIsSyntaxOpen] = useState(false);
   // no file import/export in global mode
 
   const getAbsolutePos = (
@@ -570,32 +571,6 @@ export function Canvas() {
             >
               Backup
             </button>
-            <button
-              className="border bg-white px-4 py-1 rounded border-gray-300"
-              onClick={() => {
-                handleChangeCode(
-                  things.map((t) => t.code),
-                  things.map((t) => t.id)
-                );
-              }}
-            >
-              Reset
-            </button>
-            {/* Export/Import removed in favor of global auto-save */}
-            <button
-              className="border bg-white px-4 py-1 rounded border-gray-300"
-              onClick={() => {
-                const confirm = window.confirm(
-                  "Are you sure you want to clear all data?"
-                );
-                if (confirm) {
-                  setThings([]);
-                }
-              }}
-            >
-              Clear
-            </button>
-            {/* Upload input removed */}
           </div>
           {selected && (
             <>
@@ -650,6 +625,113 @@ export function Canvas() {
       >
         <FiMenu />
       </button>
+      <button
+        onClick={() => setIsSyntaxOpen(true)}
+        className="fixed bottom-24 right-6 cursor-pointer hover:bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center bg-gray-50 shadow-lg border border-gray-300 text-base"
+        title="View syntax"
+        type="button"
+      >
+        ?
+      </button>
+
+      {isSyntaxOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setIsSyntaxOpen(false)}
+          />
+          <div className="relative bg-white w-full sm:w-[720px] max-h-[80vh] rounded shadow-xl border border-gray-300 m-0 sm:m-8 overflow-scroll">
+            <div className="flex items-center justify-between px-4 py-2 bg-gray-100 border-b border-gray-300">
+              <div className="font-medium">Syntax Cheat Sheet</div>
+              <button
+                className="text-gray-600 hover:text-black"
+                onClick={() => setIsSyntaxOpen(false)}
+                type="button"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4 text-sm leading-6 overflow-auto">
+              <p className="mb-3">
+                A quick overview of the mini-language used in this canvas.
+              </p>
+
+              <div className="mb-4">
+                <div className="font-semibold mb-1">Basics</div>
+                <pre className="bg-gray-50 border border-gray-200 rounded p-3 whitespace-pre-wrap">
+                  {`<Name> is <Value>
+duplicate <Name>
+sticky <Name>
+on <Event> do <Reference>
+transition <Name> [<Value>, <Value>, ...] on <Reference>
+if <Condition> then <Statement>
+`}
+                </pre>
+              </div>
+
+              <div className="mb-4">
+                <div className="font-semibold mb-1">Values</div>
+                <ul className="list-disc pl-5">
+                  <li>Number: 123</li>
+                  <li>{'String: "hello"'}</li>
+                  <li>Boolean: true / false</li>
+                  <li>{'Array: [1, 2, "a"]'}</li>
+                  <li>
+                    Reference: <code>Name.Field</code> (dot-separated)
+                  </li>
+                </ul>
+              </div>
+
+              <div className="mb-4">
+                <div className="font-semibold mb-1">
+                  Conditions and Expressions
+                </div>
+                <ul className="list-disc pl-5">
+                  <li>
+                    <code>A eq B</code> equality check (A and B are values or
+                    references)
+                  </li>
+                  <li>
+                    Logical And/Or: <code>true and false</code>,
+                    <code> A eq B or C eq D</code>
+                  </li>
+                  <li>
+                    Logical Not: <code>not (A eq B)</code>
+                  </li>
+                  <li>
+                    Add/Sub: <code>1 + 2 - 3</code>
+                  </li>
+                  <li>
+                    Mul/Div: <code>1 * 2 / 3</code>
+                  </li>
+                  <li>
+                    Grouping: <code>(1 + 2) * 3</code>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="mb-4">
+                <div className="font-semibold mb-1">Examples</div>
+                <pre className="bg-gray-50 border border-gray-200 rounded p-3 whitespace-pre-wrap">
+                  {`title is "Hello"
+count is 1
+sticky Parent
+duplicate Original
+on click do action.run
+transition State ["idle", "running"] on input.state
+if count eq 1 then title is "Once"`}
+                </pre>
+              </div>
+
+              <div className="text-xs text-gray-500">
+                Note: Names may include Japanese characters, alphanumerics, and
+                underscores.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

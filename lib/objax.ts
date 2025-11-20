@@ -55,7 +55,45 @@ export interface Duplicate {
   name: Name;
 }
 
-export type ValueType = BooleanType | StringType | FieldValueType | EqType;
+export interface OrType {
+  type: "Or";
+  left: ValueType;
+  right: ValueType;
+}
+
+export interface AndType {
+  type: "And";
+  left: ValueType;
+  right: ValueType;
+}
+
+export interface BinaryOp {
+  type: "BinaryOp";
+  left: ValueType;
+  right: ValueType;
+  op: string;
+}
+
+export interface NotType {
+  type: "Not";
+  operand: ValueType;
+}
+
+export interface IntegerType {
+  type: "Integer";
+  value: number;
+}
+
+export type ValueType =
+  | BooleanType
+  | StringType
+  | IntegerType
+  | BinaryOp
+  | FieldValueType
+  | EqType
+  | OrType
+  | AndType
+  | NotType;
 
 export interface Thing {
   id?: string;
@@ -86,9 +124,32 @@ export function getField(
 export function getValue(
   things: Thing[],
   t: ValueType | EqType
-): boolean | string | undefined {
+): boolean | string | number | undefined {
   if (t.type === "Eq") {
     return getValue(things, t.left) === getValue(things, t.right);
+  } else if (t.type === "Or") {
+    const l = getValue(things, t.left);
+    const r = getValue(things, t.right);
+    return Boolean(l) || Boolean(r);
+  } else if (t.type === "And") {
+    const l = getValue(things, t.left);
+    const r = getValue(things, t.right);
+    return Boolean(l) && Boolean(r);
+  } else if (t.type === "Not") {
+    const v = getValue(things, t.operand);
+    return !Boolean(v);
+  } else if (t.type === "BinaryOp") {
+    const left = Number(getValue(things, t.left));
+    const right = Number(getValue(things, t.right));
+    if (t.op === "+") {
+      return left + right;
+    } else if (t.op === "-") {
+      return left - right;
+    } else if (t.op === "*") {
+      return left * right;
+    } else if (t.op === "/") {
+      return left / right;
+    }
   } else if (t.type === "Reference") {
     const field = getField(things, t.path[0].name, t.path[1]?.name);
     if (!field) {
@@ -121,11 +182,7 @@ export function getThing(code: string): Thing {
     return result.filter((r: { type: string }) => r.type === type);
   }
   return {
-    name: (
-      (filter("DefField") as FieldType[]).find(
-        (f: { name: { name: string } }) => f.name.name === "name"
-      )?.value as StringType
-    ).value,
+    name: find("DefName").value.name,
     fields: filter("DefField"),
     transitions: filter("Transition"),
     eventActions: filter("EventAction"),
