@@ -29,6 +29,7 @@ export function ThingComponent({
   editing,
   scrollLeft = 0,
   scrollTop = 0,
+  onActionUpdate,
   onGeometryChange,
   onGeometryCommit,
 }: {
@@ -40,8 +41,9 @@ export function ThingComponent({
   editing: boolean;
   scrollLeft?: number;
   scrollTop?: number;
-  onGeometryChange?: (id: string) => void;
-  onGeometryCommit?: (id: string) => void;
+  onActionUpdate?: (ids: string[], updatedList: Thing[]) => void;
+  onGeometryChange?: (id: string, updatedThing: Thing) => void;
+  onGeometryCommit?: (id: string, updatedThing: Thing) => void;
 }) {
   const [size, setSize] = useState({
     width: thing.width ?? 200,
@@ -87,7 +89,7 @@ export function ThingComponent({
       // Notify end-of-geometry change so the caller can persist
       if ((wasDragging || wasResizing) && onGeometryCommit) {
         try {
-          onGeometryCommit(thing.id!);
+          onGeometryCommit(thing.id!, thing);
         } catch {}
       }
     };
@@ -145,7 +147,7 @@ export function ThingComponent({
           if (now - lastEmitRef.current > 60) {
             lastEmitRef.current = now;
             try {
-              onGeometryChange(thing.id!);
+              onGeometryChange(thing.id!, thing);
             } catch {}
           }
         }
@@ -172,7 +174,7 @@ export function ThingComponent({
             lastEmitRef.current = now;
             try {
               console.log(thing);
-              onGeometryChange(thing.id!);
+              onGeometryChange(thing.id!, thing);
             } catch {}
           }
         }
@@ -294,25 +296,40 @@ export function ThingComponent({
       results.push({ ea, value, field, transition });
     });
 
-    setThings((prev) => {
-      return prev.map((p) => {
-        const target = results.find(
-          (r) => p.name === r.transition.field.path[0].name
-        );
-        if (target) {
-          return {
-            ...p,
-            fields: p.fields?.map((f) => {
-              if (f.name.name === target.transition.field.path[1].name) {
-                return { ...f, value: target.value };
-              }
-              return f;
-            }),
-          };
-        }
-        return p;
-      });
+    const updatedList: Thing[] = [];
+    const newThings = things.map((p) => {
+      const target = results.find(
+        (r) => p.name === r.transition.field.path[0].name
+      );
+      if (target) {
+        const updated = {
+          ...p,
+          fields: p.fields?.map((f) => {
+            if (f.name.name === target.transition.field.path[1].name) {
+              return { ...f, value: target.value };
+            }
+            return f;
+          }),
+        };
+        updatedList.push(updated);
+        return updated;
+      }
+      return p;
     });
+    setThings(newThings);
+    // Notify parent which things were changed (by name -> ids)
+    if (onActionUpdate) {
+      try {
+        const changedNames = results.map(
+          (r) => r.transition.field.path[0].name
+        );
+        const changedIds = things
+          .filter((p) => changedNames.includes(p.name))
+          .map((p) => p.id!)
+          .filter(Boolean);
+        if (changedIds.length) onActionUpdate(changedIds, updatedList);
+      } catch {}
+    }
   };
   const text = useMemo(() => {
     const t = thing.fields?.find((f) => f.name.name === "text");

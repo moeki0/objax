@@ -46,28 +46,13 @@ export async function POST(req: Request) {
       : [];
     const deletes: string[] = Array.isArray(body?.deletes) ? body.deletes : [];
 
-    // Write upserts to KV
-    const mergedUpserts: any[] = [];
     await Promise.all(
       upserts.map(async (obj) => {
         const id = (obj as any)?.id;
         if (!id || typeof id !== "string") return;
         const key = objectKey(id);
-        let existing: any = {};
-        try {
-          existing = ((await kv.get(key)) as any) || {};
-        } catch {}
-        const merged = { ...existing, ...obj, id };
-        await kv.set(key, merged);
+        await kv.set(key, obj);
         await kv.zadd(OBJECTS_ZSET, { score: Date.now(), member: id });
-        mergedUpserts.push({
-          id,
-          code: merged.code,
-          x: merged.x,
-          y: merged.y,
-          width: merged.width,
-          height: merged.height,
-        });
       })
     );
 

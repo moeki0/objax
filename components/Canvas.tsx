@@ -22,20 +22,10 @@ export function Canvas() {
   const saveTimersRef = useRef<Map<string, any>>(new Map());
   // Buffer for delayed persistence to KV
   const persistBufferRef = useRef<{
-    upserts: Map<
-      string,
-      {
-        id: string;
-        code: string;
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-      }
-    >;
-    deletes: Set<string>;
+    upserts: Map<string, Thing>;
+    deletes: Map<string, Thing>;
     timer: any | null;
-  }>({ upserts: new Map(), deletes: new Set(), timer: null });
+  }>({ upserts: new Map(), deletes: new Map(), timer: null });
 
   const getConnId = () => {
     try {
@@ -46,28 +36,8 @@ export function Canvas() {
     }
   };
 
-  const snapshotForId = (id: string) => {
-    const t = latestThingsRef.current.find((tt) => tt.id === id);
-    if (!t) return null;
-    return {
-      id,
-      code: String(t.code ?? ""),
-      x: t.x ?? 0,
-      y: t.y ?? 0,
-      width: t.width ?? 200,
-      height: t.height ?? 200,
-    };
-  };
-
   const publishUpdate = async ({
-    upserts = [] as Array<{
-      id: string;
-      code?: string;
-      x?: number;
-      y?: number;
-      width?: number;
-      height?: number;
-    }>,
+    upserts = [] as Thing[],
     deletes = [] as string[],
   } = {}) => {
     try {
@@ -82,24 +52,21 @@ export function Canvas() {
   };
 
   const schedulePersist = ({
-    ids = [] as string[],
-    deletes = [] as string[],
+    things = [] as Thing[],
+    deletes = [] as Thing[],
     delay = 1200,
   } = {}) => {
     const buf = persistBufferRef.current;
     // Merge upserts
-    for (const id of ids) {
-      if (!id) continue;
-      const snap = snapshotForId(id);
-      if (!snap) continue;
-      buf.deletes.delete(id);
-      buf.upserts.set(id, snap);
+    for (const thing of things) {
+      buf.deletes.delete(thing.id!);
+      buf.upserts.set(thing.id!, thing);
     }
     // Merge deletes
-    for (const id of deletes) {
-      if (!id) continue;
-      buf.upserts.delete(id);
-      buf.deletes.add(id);
+    for (const thing of deletes) {
+      if (!thing) continue;
+      buf.upserts.delete(thing.id!);
+      buf.deletes.set(thing.id!, thing);
     }
     // Reset timer
     if (buf.timer) clearTimeout(buf.timer);
@@ -113,58 +80,32 @@ export function Canvas() {
     }, delay);
   };
 
-  const scheduleCodeSave = (id: string, delay = 600) => {
+  const scheduleCodeSave = (id: string, thing: Thing, delay = 600) => {
     const timers = saveTimersRef.current;
     if (timers.has(id)) {
       clearTimeout(timers.get(id));
     }
     const handle = setTimeout(() => {
-      const t = latestThingsRef.current.find((tt) => tt.id === id);
-      if (!t) return;
-      // Skip if snapshot unchanged
-      const prev = lastSavedSnapshotRef.current.get(id);
-      const snapStr = JSON.stringify({
-        code: String(t.code ?? ""),
-        x: t.x ?? 0,
-        y: t.y ?? 0,
-        width: t.width ?? 200,
-        height: t.height ?? 200,
-      });
-      if (prev === snapStr) return;
-      schedulePersist({ ids: [id], delay });
+      schedulePersist({ things: [thing], delay });
     }, delay);
     timers.set(id, handle);
   };
 
-  const flushCodeSave = (id: string) => {
+  const flushCodeSave = (id: string, thing: Thing) => {
     const timers = saveTimersRef.current;
     if (timers.has(id)) {
       clearTimeout(timers.get(id));
       timers.delete(id);
     }
-    scheduleCodeSave(id, 0);
+    scheduleCodeSave(id, thing, 0);
   };
   const postObjects = async ({
-    upserts = [] as Array<{
-      id: string;
-      code?: string;
-      x?: number;
-      y?: number;
-      width?: number;
-      height?: number;
-    }>,
-    deletes = [] as string[],
+    upserts = [] as Thing[],
+    deletes = [] as Thing[],
   }) => {
     if (upserts.length === 0 && deletes.length === 0) return;
     try {
-      const connId = (() => {
-        try {
-          const c = getAblyClient();
-          return (c.connection as any)?.id as string | undefined;
-        } catch {
-          return undefined;
-        }
-      })();
+      console.log(upserts);
       const res = await fetch("/api/objects", {
         method: "POST",
         headers: {
@@ -184,9 +125,9 @@ export function Canvas() {
             width: u.width ?? t?.width ?? 200,
             height: u.height ?? t?.height ?? 200,
           });
-          cur.set(u.id, snap);
+          cur.set(u.id!, snap);
         }
-        for (const id of deletes) cur.delete(id);
+        for (const thing of deletes) cur.delete(thing.id!);
         lastSavedSnapshotRef.current = cur;
       }
     } catch {}
@@ -195,35 +136,24 @@ export function Canvas() {
     const left = scrollRef.current?.scrollLeft ?? 0;
     const top = scrollRef.current?.scrollTop ?? 0;
     const id = Math.random().toString(32).substring(2);
-    setThings((c) => [
-      ...c,
-      {
-        id,
-        name: "",
-        x: left,
-        text: { type: "Text" as const, value: { type: "String", value: "" } },
-        y: top,
-        width: 100,
-        height: 100,
-        code: `name is`,
-        sticky: undefined,
-        eventActions: [],
-        transitions: [],
-        fields: [],
-        imagePrompt: "",
-      },
-    ]);
-    // Ably publish immediately; persist later
-    const up = {
+    const newThing = {
       id,
-      code: "name is",
+      name: "",
       x: left,
+      text: { type: "Text" as const, value: { type: "String", value: "" } },
       y: top,
       width: 100,
       height: 100,
+      code: `name is`,
+      sticky: undefined,
+      eventActions: [],
+      transitions: [],
+      fields: [],
+      imagePrompt: "",
     };
-    publishUpdate({ upserts: [up] });
-    schedulePersist({ ids: [id] });
+    setThings((c) => [...c, newThing]);
+    publishUpdate({ upserts: [newThing] });
+    schedulePersist({ things: [newThing] });
   };
   const handleDelete = () => {
     if (!selected) return;
@@ -231,71 +161,60 @@ export function Canvas() {
     setSelected(null);
     // Ably publish immediately; persist later
     publishUpdate({ deletes: [selected.id!] });
-    schedulePersist({ deletes: [selected.id!] });
+    schedulePersist({ deletes: [selected!] });
   };
   const handleChangeCode = (
     values: (string | undefined)[],
     ids: (string | undefined)[]
   ) => {
-    setThings((prev) => {
-      return prev.map((p) => {
-        if (ids.includes(p.id!)) {
-          const code = values[ids.findIndex((i) => i === p.id!)]!;
-          let result;
-          try {
-            result = getThing(code);
-          } catch (e) {
-            console.log(e);
-          }
-          if (!result) {
-            return { ...p, code };
-          }
-          const dup = result.duplicate;
-          if (dup) {
-            const target = things.find((t) => t.name === dup.name.name);
-            return {
-              ...target,
-              duplicate: p.duplicate,
-              code,
-              name: result.name,
-              id: p.id,
-              x: p.x,
-              y: p.y,
-              width: p.width,
-              height: p.height,
-              eventActions: result.eventActions,
-            };
-          }
-          const image = result.fields?.find((f) => f.name.name === "image");
+    const newThings = things.map((p) => {
+      if (ids.includes(p.id!)) {
+        const code = values[ids.findIndex((i) => i === p.id!)]!;
+        let result;
+        try {
+          result = getThing(code);
+        } catch (e) {
+          console.log(e);
+        }
+        if (!result) {
+          return { ...p, code };
+        }
+        const dup = result.duplicate;
+        if (dup) {
+          const target = things.find((t) => t.name === dup.name.name);
           return {
-            ...p,
+            ...target,
+            duplicate: p.duplicate,
             code,
             name: result.name,
-            sticky: result.sticky,
-            fields: result.fields,
-            transitions: result.transitions,
+            id: p.id,
+            x: p.x,
+            y: p.y,
+            width: p.width,
+            height: p.height,
             eventActions: result.eventActions,
-            image,
           };
         }
-        return p;
-      });
+        const image = result.fields?.find((f) => f.name.name === "image");
+        return {
+          ...p,
+          code,
+          name: result.name,
+          sticky: result.sticky,
+          fields: result.fields,
+          transitions: result.transitions,
+          eventActions: result.eventActions,
+          image,
+        };
+      }
+      return p;
     });
-    // Ably publish immediately; persist later (debounced)
-    const ups = ids
-      .map((id, index) =>
-        id ? { ...snapshotForId(id), code: values[index] } : null
-      )
-      .filter(Boolean) as Array<{
-      id: string;
-      code: string;
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-    }>;
-    if (ups.length) publishUpdate({ upserts: ups });
-    ids.forEach((id) => id && scheduleCodeSave(id));
+    setThings(newThings);
+    const updatedThings = newThings.filter((t) => ids.includes(t.id));
+    if (updatedThings.length) publishUpdate({ upserts: updatedThings });
+    ids.forEach(
+      (id, index) => id && scheduleCodeSave(id, updatedThings[index])
+    );
   };
   const target = things.find((t) => t.id === selected?.id);
 
@@ -337,13 +256,8 @@ export function Canvas() {
       const res = await fetch("/api/objects?limit=500", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
-      const incoming = Array.isArray(data?.things)
-        ? (data.things as Partial<Thing>[])
-        : [];
-      const view = incoming
-        .filter((t) => t?.id && typeof t.id === "string")
-        .map((t) => buildFromGlobal(t));
-      setThings(view);
+      const incoming = data.things ?? [];
+      setThings(incoming);
       const m = new Map<string, string>();
       for (const t of incoming) {
         if (!t?.id) continue;
@@ -408,17 +322,28 @@ export function Canvas() {
         if (upserts.length === 0 && deletes.length === 0) return;
         setThings((prev) => {
           let next = prev.filter((t) => !deletes.includes(t.id!));
-          const incoming: Partial<Thing>[] = upserts
-            .filter((u: any) => u?.id)
-            .map((u: any) => ({
+          const incoming: any[] = upserts.filter((u: any) => u?.id);
+          const built = incoming.map((u) => {
+            const base = buildFromGlobal({
               id: String(u.id),
               code: String(u.code ?? ""),
               x: typeof u.x === "number" ? u.x : undefined,
               y: typeof u.y === "number" ? u.y : undefined,
               width: typeof u.width === "number" ? u.width : undefined,
               height: typeof u.height === "number" ? u.height : undefined,
-            }));
-          const built = incoming.map((g) => buildFromGlobal(g));
+            });
+            if (Array.isArray(u.fields) && Array.isArray(base.fields)) {
+              const overlay = new Map<string, any>(
+                u.fields.map((f: any) => [f?.name?.name, f])
+              );
+              base.fields = base.fields.map((f: any) => {
+                const ov = overlay.get(f?.name?.name);
+                if (!ov) return f;
+                return { ...f, value: ov.value };
+              });
+            }
+            return base;
+          });
           for (const b of built) {
             const idx = next.findIndex((t) => t.id === b.id);
             if (idx >= 0)
@@ -590,33 +515,17 @@ export function Canvas() {
               editing={editing}
               scrollLeft={scrollPos.left}
               scrollTop={scrollPos.top}
-              onGeometryChange={(id) => {
-                const t = latestThingsRef.current.find((tt) => tt.id === id);
-                if (!t) return;
-                const up = {
-                  id: id!,
-                  code: String(t.code ?? ""),
-                  x: t.x ?? 0,
-                  y: t.y ?? 0,
-                  width: t.width ?? 200,
-                  height: t.height ?? 200,
-                };
-                publishUpdate({ upserts: [up] });
-                schedulePersist({ ids: [id!] });
+              onActionUpdate={(ids, updatedList) => {
+                if (ids.length) publishUpdate({ upserts: updatedList });
+                if (ids.length) schedulePersist({ things: updatedList });
               }}
-              onGeometryCommit={(id) => {
-                const t = latestThingsRef.current.find((tt) => tt.id === id);
-                if (!t) return;
-                const up = {
-                  id: id!,
-                  code: String(t.code ?? ""),
-                  x: t.x ?? 0,
-                  y: t.y ?? 0,
-                  width: t.width ?? 200,
-                  height: t.height ?? 200,
-                };
-                publishUpdate({ upserts: [up] });
-                schedulePersist({ ids: [id!] });
+              onGeometryChange={(id, updatedThing) => {
+                publishUpdate({ upserts: [updatedThing] });
+                schedulePersist({ things: [updatedThing] });
+              }}
+              onGeometryCommit={(id, updatedThing) => {
+                publishUpdate({ upserts: [updatedThing] });
+                schedulePersist({ things: [updatedThing] });
               }}
             />
           ))}
@@ -695,7 +604,9 @@ export function Canvas() {
                 onChange={(e) =>
                   handleChangeCode([e.target.value], [selected.id])
                 }
-                onBlur={() => selected?.id && flushCodeSave(selected.id)}
+                onBlur={() =>
+                  selected?.id && flushCodeSave(selected.id, selected)
+                }
                 value={target?.code}
                 minRows={10}
                 maxRows={10}
