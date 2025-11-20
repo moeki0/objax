@@ -22,7 +22,17 @@ export function Canvas() {
   const saveTimersRef = useRef<Map<string, any>>(new Map());
   // Buffer for delayed persistence to KV
   const persistBufferRef = useRef<{
-    upserts: Map<string, { id: string; code: string; x: number; y: number; width: number; height: number }>;
+    upserts: Map<
+      string,
+      {
+        id: string;
+        code: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }
+    >;
     deletes: Set<string>;
     timer: any | null;
   }>({ upserts: new Map(), deletes: new Set(), timer: null });
@@ -49,12 +59,17 @@ export function Canvas() {
     };
   };
 
-  const publishUpdate = async (
-    {
-      upserts = [] as Array<{ id: string; code?: string; x?: number; y?: number; width?: number; height?: number }>,
-      deletes = [] as string[],
-    } = {}
-  ) => {
+  const publishUpdate = async ({
+    upserts = [] as Array<{
+      id: string;
+      code?: string;
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+    }>,
+    deletes = [] as string[],
+  } = {}) => {
     try {
       const client = getAblyClient();
       const ch = client.channels.get("things");
@@ -66,7 +81,11 @@ export function Canvas() {
     } catch {}
   };
 
-  const schedulePersist = ({ ids = [] as string[], deletes = [] as string[], delay = 1200 } = {}) => {
+  const schedulePersist = ({
+    ids = [] as string[],
+    deletes = [] as string[],
+    delay = 1200,
+  } = {}) => {
     const buf = persistBufferRef.current;
     // Merge upserts
     for (const id of ids) {
@@ -195,7 +214,14 @@ export function Canvas() {
       },
     ]);
     // Ably publish immediately; persist later
-    const up = { id, code: "name is", x: left, y: top, width: 100, height: 100 };
+    const up = {
+      id,
+      code: "name is",
+      x: left,
+      y: top,
+      width: 100,
+      height: 100,
+    };
     publishUpdate({ upserts: [up] });
     schedulePersist({ ids: [id] });
   };
@@ -257,7 +283,9 @@ export function Canvas() {
     });
     // Ably publish immediately; persist later (debounced)
     const ups = ids
-      .map((id) => (id ? snapshotForId(id) : null))
+      .map((id, index) =>
+        id ? { ...snapshotForId(id), code: values[index] } : null
+      )
       .filter(Boolean) as Array<{
       id: string;
       code: string;

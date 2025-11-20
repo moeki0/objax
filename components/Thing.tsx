@@ -171,6 +171,7 @@ export function ThingComponent({
           if (now - lastEmitRef.current > 60) {
             lastEmitRef.current = now;
             try {
+              console.log(thing);
               onGeometryChange(thing.id!);
             } catch {}
           }
@@ -218,7 +219,7 @@ export function ThingComponent({
       }
       const visibleField = getField(things, t.name, "visible");
       const visible =
-        selected?.id === t.id
+        selected?.id === t.id && editing
           ? true
           : visibleField
           ? !!getValue(things, visibleField.value)
@@ -347,8 +348,10 @@ export function ThingComponent({
 
   return (
     <div
-      className={`border border-dashed ${thing.sticky ? "z-50" : ""} ${
-        editing ? "bg-slate-300/50" : "border-transparent"
+      className={`border ${thing.sticky ? "z-50" : ""} ${
+        editing
+          ? "bg-slate-300/50 border-dashed!"
+          : "border-transparent border-dashed"
       } inline-block select-none absolute ${
         fontFamily && getValue(things, fontFamily.value) === "Henny Penny"
           ? "henny-penny-regular"
@@ -357,8 +360,8 @@ export function ThingComponent({
       style={{
         left: `${getAbsolutePos(thing).x}px`,
         top: `${getAbsolutePos(thing).y}px`,
-        width: `${size.width}px`,
-        height: `${size.height}px`,
+        width: `${thing.width}px`,
+        height: `${thing.height}px`,
         display: isDisplayed ? "block" : "none",
         fontSize: `${fontSize}px`,
         ...style,
