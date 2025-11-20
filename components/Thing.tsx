@@ -28,6 +28,7 @@ export function ThingComponent({
   editing,
   scrollLeft = 0,
   scrollTop = 0,
+  onGeometryCommit,
 }: {
   thing: Thing;
   things: Thing[];
@@ -37,6 +38,7 @@ export function ThingComponent({
   editing: boolean;
   scrollLeft?: number;
   scrollTop?: number;
+  onGeometryCommit?: (id: string) => void;
 }) {
   const [size, setSize] = useState({
     width: thing.width ?? 200,
@@ -74,8 +76,16 @@ export function ThingComponent({
 
   useEffect(() => {
     const handleMouseUp = () => {
+      const wasDragging = isDragging;
+      const wasResizing = isResizing;
       if (isDragging) setIsDragging(false);
       if (isResizing) setIsResizing(false);
+      // Notify end-of-geometry change so the caller can persist
+      if ((wasDragging || wasResizing) && onGeometryCommit) {
+        try {
+          onGeometryCommit(thing.id!);
+        } catch {}
+      }
     };
     const handleDrag = (e: MouseEvent) => {
       if (isDragging) {

@@ -1,27 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { list } from "@vercel/blob";
+import { kv } from "@vercel/kv";
+
+const OBJECTS_ZSET = "objects:z";
+const objectKey = (id: string) => `objects:${id}`;
 
 export async function GET() {
   try {
     const all: any[] = [];
-    let cursor: string | undefined = undefined;
-    const prefix = "objects/";
-    const limit = 1000;
-
-    do {
-      const res: any = await list({ prefix, limit, cursor });
-      const blobs = res.blobs;
-      const next = res.cursor;
-      cursor = next || undefined;
-      for (const b of blobs) {
-        try {
-          const r = await fetch(b.url, { cache: "no-store" });
-          if (!r.ok) continue;
-          const json = await r.json();
-          all.push(json);
-        } catch {}
-      }
-    } while (cursor);
+    // Get all ids from the zset
+    const ids = (await kv.zrange(OBJECTS_ZSET, 0, -1)) as string[];
+    for (const id of ids) {
+      try {
+        const obj = await kv.get(objectKey(id));
+        if (obj) all.push(obj);
+      } catch {}
+    }
 
     const body = JSON.stringify(all, null, 2);
     const filename = `objax-world-${new Date()

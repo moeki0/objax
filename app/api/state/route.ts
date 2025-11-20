@@ -1,20 +1,11 @@
 import { NextResponse } from "next/server";
-import { list, put } from "@vercel/blob";
+import { kv } from "@vercel/kv";
 
-const STATE_KEY = "state/global.json";
+const STATE_KEY = "state:global";
 
 export async function GET() {
   try {
-    const { blobs } = await list({ prefix: STATE_KEY, limit: 1 });
-    if (!blobs.length) {
-      return NextResponse.json({ things: [] }, { status: 200 });
-    }
-    const url = blobs[0].url;
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) {
-      return NextResponse.json({ things: [] }, { status: 200 });
-    }
-    const json = await res.json().catch(() => []);
+    const json = (await kv.get(STATE_KEY)) as unknown;
     return NextResponse.json({ things: Array.isArray(json) ? json : [] });
   } catch (e) {
     console.error(e);
@@ -32,16 +23,10 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    const data = JSON.stringify(things);
-    const result = await put(STATE_KEY, data, {
-      access: "public",
-      contentType: "application/json",
-      addRandomSuffix: false,
-    });
-    return NextResponse.json({ ok: true, url: result.url });
+    await kv.set(STATE_KEY, things);
+    return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Failed to save state" }, { status: 500 });
   }
 }
-

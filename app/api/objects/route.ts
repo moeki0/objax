@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import { list, put, del } from "@vercel/blob";
+import { kv } from "@vercel/kv";
 import { Thing } from "@/lib/objax";
+import { getAblyRest } from "@/lib/ably/server";
 
-function buildKey(id: string) {
-  return `objects/${id}.json`;
-}
+const OBJECTS_ZSET = "objects:z";
+const objectKey = (id: string) => `objects:${id}`;
 
 export async function GET(req: Request) {
   try {
@@ -14,28 +14,22 @@ export async function GET(req: Request) {
       parseInt(searchParams.get("limit") || "200", 10),
       1000
     );
-    const cursor = searchParams.get("cursor") || undefined;
-    const prefix = "objects/";
-
-    const { blobs, cursor: nextCursor } = await list({ prefix, limit, cursor });
-
-    // Fetch each object's JSON content (bounded by limit)
+    const cursorStr = searchParams.get("cursor");
+    const start = Math.max(0, parseInt(cursorStr || "0", 10) || 0);
+    const end = start + limit - 1;
+    const ids = (await kv.zrange(OBJECTS_ZSET, start, end)) as string[];
     const items = await Promise.all(
-      blobs.map(async (b) => {
+      ids.map(async (id) => {
         try {
-          const r = await fetch(b.url, { cache: "no-store" });
-          const json = await r.json();
-          return json;
+          const obj = await kv.get(objectKey(id));
+          return obj as any;
         } catch {
           return null;
         }
       })
     );
-
-    return NextResponse.json({
-      things: items.filter(Boolean),
-      cursor: nextCursor || null,
-    });
+    const nextCursor = ids.length === limit ? String(start + limit) : null;
+    return NextResponse.json({ things: items.filter(Boolean), cursor: nextCursor });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ things: [], cursor: null }, { status: 200 });
@@ -45,34 +39,36 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    // Accept partial upserts to reduce payload; server merges onto existing
     const upserts: Partial<Thing>[] = Array.isArray(body?.upserts)
       ? body.upserts
       : [];
     const deletes: string[] = Array.isArray(body?.deletes) ? body.deletes : [];
+    const sourceConnectionId: string | undefined =
+      typeof body?.sourceConnectionId === "string" && body.sourceConnectionId
+        ? body.sourceConnectionId
+        : undefined;
 
-    // Write upserts
+    // Write upserts to KV
+    const mergedUpserts: any[] = [];
     await Promise.all(
       upserts.map(async (obj) => {
         const id = (obj as any)?.id;
         if (!id || typeof id !== "string") return;
-
-        // Try to fetch existing JSON (if any)
+        const key = objectKey(id);
         let existing: any = {};
         try {
-          const { blobs } = await list({ prefix: buildKey(id), limit: 1 });
-          if (blobs.length) {
-            const r = await fetch(blobs[0].url, { cache: "no-store" });
-            if (r.ok) existing = await r.json();
-          }
+          existing = ((await kv.get(key)) as any) || {};
         } catch {}
-
         const merged = { ...existing, ...obj, id };
-        const data = JSON.stringify(merged);
-        await put(buildKey(id), data, {
-          access: "public",
-          contentType: "application/json",
-          addRandomSuffix: false,
+        await kv.set(key, merged);
+        await kv.zadd(OBJECTS_ZSET, { score: Date.now(), member: id });
+        mergedUpserts.push({
+          id,
+          code: merged.code,
+          x: merged.x,
+          y: merged.y,
+          width: merged.width,
+          height: merged.height,
         });
       })
     );
@@ -80,9 +76,23 @@ export async function POST(req: Request) {
     await Promise.all(
       deletes.map(async (id) => {
         if (!id || typeof id !== "string") return;
-        await del(buildKey(id));
+        await kv.del(objectKey(id));
+        await kv.zrem(OBJECTS_ZSET, id);
       })
     );
+
+    // Broadcast change via Ably
+    try {
+      const rest = getAblyRest();
+      const channel = rest.channels.get("things");
+      await channel.publish("update", {
+        upserts: mergedUpserts,
+        deletes,
+        sourceConnectionId,
+      });
+    } catch (e) {
+      console.error("Ably publish failed", e);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e) {

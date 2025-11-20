@@ -7,17 +7,102 @@ import { getThing, Thing } from "@/lib/objax";
 import TextareaAutosize from "react-textarea-autosize";
 import { ThingList } from "./ThingList";
 import { FiMenu } from "react-icons/fi";
+import { getAblyClient } from "@/lib/ably/client";
 
 export function Canvas() {
   const [selected, setSelected] = useState<Thing | null>(null);
   const [things, setThings] = useState<Thing[]>([]);
   const latestThingsRef = useRef<Thing[]>(things);
   latestThingsRef.current = things;
-  // Track last saved sanitized global JSON per id
-  const lastSavedMapRef = useRef<Map<string, string>>(new Map());
+  const lastSavedSnapshotRef = useRef<Map<string, string>>(new Map());
   const [editing, setEditing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollPos, setScrollPos] = useState({ left: 0, top: 0 });
+  // Debounce timers for code saves per Thing id
+  const saveTimersRef = useRef<Map<string, any>>(new Map());
+
+  const scheduleCodeSave = (id: string, delay = 600) => {
+    const timers = saveTimersRef.current;
+    if (timers.has(id)) {
+      clearTimeout(timers.get(id));
+    }
+    const handle = setTimeout(() => {
+      const t = latestThingsRef.current.find((tt) => tt.id === id);
+      if (!t) return;
+      // Skip if snapshot unchanged
+      const prev = lastSavedSnapshotRef.current.get(id);
+      const snapStr = JSON.stringify({
+        code: String(t.code ?? ""),
+        x: t.x ?? 0,
+        y: t.y ?? 0,
+        width: t.width ?? 200,
+        height: t.height ?? 200,
+      });
+      if (prev === snapStr) return;
+      postObjects({
+        upserts: [
+          {
+            id,
+            code: String(t.code ?? ""),
+            x: t.x ?? 0,
+            y: t.y ?? 0,
+            width: t.width ?? 200,
+            height: t.height ?? 200,
+          },
+        ],
+      });
+    }, delay);
+    timers.set(id, handle);
+  };
+
+  const flushCodeSave = (id: string) => {
+    const timers = saveTimersRef.current;
+    if (timers.has(id)) {
+      clearTimeout(timers.get(id));
+      timers.delete(id);
+    }
+    scheduleCodeSave(id, 0);
+  };
+  const postObjects = async ({
+    upserts = [] as Array<{ id: string; code?: string; x?: number; y?: number; width?: number; height?: number }>,
+    deletes = [] as string[],
+  }) => {
+    if (upserts.length === 0 && deletes.length === 0) return;
+    try {
+      const connId = (() => {
+        try {
+          const c = getAblyClient();
+          return (c.connection as any)?.id as string | undefined;
+        } catch {
+          return undefined;
+        }
+      })();
+      const res = await fetch("/api/objects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ upserts, deletes, sourceConnectionId: connId }),
+      });
+      if (res.ok) {
+        // Update local snapshot cache to avoid redundant interval writes
+        const cur = new Map(lastSavedSnapshotRef.current);
+        for (const u of upserts) {
+          const t = latestThingsRef.current.find((tt) => tt.id === u.id);
+          const snap = JSON.stringify({
+            code: String(u.code ?? t?.code ?? ""),
+            x: u.x ?? (t?.x ?? 0),
+            y: u.y ?? (t?.y ?? 0),
+            width: u.width ?? (t?.width ?? 200),
+            height: u.height ?? (t?.height ?? 200),
+          });
+          cur.set(u.id, snap);
+        }
+        for (const id of deletes) cur.delete(id);
+        lastSavedSnapshotRef.current = cur;
+      }
+    } catch {}
+  };
   const handleAdd = () => {
     const left = scrollRef.current?.scrollLeft ?? 0;
     const top = scrollRef.current?.scrollTop ?? 0;
@@ -40,11 +125,26 @@ export function Canvas() {
         imagePrompt: "",
       },
     ]);
+    // Persist immediately so others see it
+    postObjects({
+      upserts: [
+        {
+          id,
+          code: "name is",
+          x: left,
+          y: top,
+          width: 100,
+          height: 100,
+        },
+      ],
+    });
   };
   const handleDelete = () => {
     if (!selected) return;
     setThings((prev) => prev.filter((p) => p.id !== selected.id));
     setSelected(null);
+    // Persist deletion
+    postObjects({ deletes: [selected.id!] });
   };
   const handleChangeCode = (
     values: (string | undefined)[],
@@ -94,59 +194,78 @@ export function Canvas() {
         return p;
       });
     });
+    // Debounce save for target ids
+    ids.forEach((id) => id && scheduleCodeSave(id));
   };
   const target = things.find((t) => t.id === selected?.id);
 
-  // Sanitize a Thing for global save: use code for logical fields, current geometry is global
-  const sanitizeForGlobalSave = (t: Thing): Thing => {
+  // Build a Thing from global code + personal state overlay
+  const buildFromGlobal = (g: Partial<Thing>): Thing => {
+    const id = g.id as string;
+    const code = g.code || "";
     let parsed;
     try {
-      parsed = getThing(String(t.code ?? ""));
+      parsed = getThing(code);
     } catch {
-      parsed = { name: "", fields: [], transitions: [], eventActions: [], sticky: undefined } as any;
+      parsed = {
+        name: "",
+        fields: [],
+        transitions: [],
+        eventActions: [],
+        sticky: undefined,
+      } as any;
     }
-    return {
-      id: t.id,
-      code: t.code,
+    const base: Thing = {
+      id,
+      code,
       name: parsed.name,
       sticky: parsed.sticky,
       eventActions: parsed.eventActions,
       transitions: parsed.transitions,
       fields: parsed.fields,
-      x: t.x,
-      y: t.y,
-      width: t.width,
-      height: t.height,
-    } as Thing;
+      width: (g as any)?.width ?? 200,
+      height: (g as any)?.height ?? 200,
+      x: (g as any)?.x ?? 0,
+      y: (g as any)?.y ?? 0,
+    };
+    return base;
   };
 
-  // Load globals and sanitize for local use
-  const reloadFromServer = async () => {
+  // Load globals and merge with personal state
+  const reloadFromGlobal = async () => {
     try {
       const res = await fetch("/api/objects?limit=500", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
-      const incoming = Array.isArray(data?.things) ? (data.things as Thing[]) : [];
+      const incoming = Array.isArray(data?.things)
+        ? (data.things as Partial<Thing>[])
+        : [];
       const view = incoming
         .filter((t) => t?.id && typeof t.id === "string")
-        .map((t) => sanitizeForGlobalSave(t));
+        .map((t) => buildFromGlobal(t));
       setThings(view);
       const m = new Map<string, string>();
-      for (const t of view) {
+      for (const t of incoming) {
         if (!t?.id) continue;
-        // Save sanitized snapshot baseline
-        m.set(t.id as string, JSON.stringify(sanitizeForGlobalSave(t)));
+        const snapshot = JSON.stringify({
+          code: String(t.code ?? ""),
+          x: (t as any)?.x ?? 0,
+          y: (t as any)?.y ?? 0,
+          width: (t as any)?.width ?? 200,
+          height: (t as any)?.height ?? 200,
+        });
+        m.set(t.id as string, snapshot);
       }
-      lastSavedMapRef.current = m;
+      lastSavedSnapshotRef.current = m;
     } catch {}
   };
 
-  // Initial load
+  // Initial load: merge global with personal
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       if (cancelled) return;
-      await reloadFromServer();
+      await reloadFromGlobal();
     };
     load();
     return () => {
@@ -168,132 +287,75 @@ export function Canvas() {
     });
   }, []);
 
-  // Poll server and merge without clobbering unsaved local changes
+  // Removed periodic auto-save to avoid race conflicts while dragging.
+
+  // Realtime updates via Ably: apply update payload without full reload
   useEffect(() => {
-    let cancelled = false;
-    let backoff = 5000;
-    const tick = async () => {
-      if (cancelled) return;
-      try {
-        const res = await fetch("/api/objects?limit=500", { cache: "no-store" });
-        if (!res.ok) throw new Error("poll failed");
-        const data = await res.json();
-        const incoming: Thing[] = Array.isArray(data?.things) ? data.things : [];
-
+    try {
+      const client = getAblyClient();
+      const ch = client.channels.get("things");
+      const handler = (msg: any) => {
+        const data = msg?.data || {};
+        // Ignore our own updates to prevent transient flicker
+        try {
+          const clientConnId = (client.connection as any)?.id as string | undefined;
+          if (clientConnId && data?.sourceConnectionId === clientConnId) return;
+        } catch {}
+        const upserts = Array.isArray(data?.upserts) ? data.upserts : [];
+        const deletes = Array.isArray(data?.deletes) ? data.deletes : [];
+        if (upserts.length === 0 && deletes.length === 0) return;
         setThings((prev) => {
-          const prevById = new Map<string, Thing>();
-          prev.forEach((p) => p.id && prevById.set(p.id, p));
-
-          const unsaved = new Set<string>();
-          for (const p of prev) {
-            if (!p?.id) continue;
-            const s = JSON.stringify(sanitizeForGlobalSave(p));
-            if (lastSavedMapRef.current.get(p.id) !== s) unsaved.add(p.id);
+          let next = prev.filter((t) => !deletes.includes(t.id!));
+          const incoming: Partial<Thing>[] = upserts
+            .filter((u: any) => u?.id)
+            .map((u: any) => ({
+              id: String(u.id),
+              code: String(u.code ?? ""),
+              x: typeof u.x === "number" ? u.x : undefined,
+              y: typeof u.y === "number" ? u.y : undefined,
+              width: typeof u.width === "number" ? u.width : undefined,
+              height: typeof u.height === "number" ? u.height : undefined,
+            }));
+          const built = incoming.map((g) => buildFromGlobal(g));
+          for (const b of built) {
+            const idx = next.findIndex((t) => t.id === b.id);
+            if (idx >= 0) next = [...next.slice(0, idx), b, ...next.slice(idx + 1)];
+            else next = [...next, b];
           }
-
-          const nextById = new Map<string, Thing>();
-          for (const inc of incoming) {
-            const id = inc.id as string;
-            if (!id) continue;
-            if (unsaved.has(id) && prevById.has(id)) {
-              // keep local unsaved
-              nextById.set(id, prevById.get(id)!);
-            } else {
-              const sanitized = sanitizeForGlobalSave(inc);
-              nextById.set(id, sanitized);
-            }
-          }
-          // keep local items not present on server if unsaved
-          for (const p of prev) {
-            if (!p?.id) continue;
-            if (!nextById.has(p.id) && unsaved.has(p.id)) {
-              nextById.set(p.id, p);
-            }
-          }
-          const next = Array.from(nextById.values());
-
-          // update baseline for items we accepted from server
-          const newBaseline = new Map(lastSavedMapRef.current);
-          for (const [id, t] of nextById) {
-            if (!unsaved.has(id)) {
-              newBaseline.set(id, JSON.stringify(sanitizeForGlobalSave(t)));
-            }
-          }
-          lastSavedMapRef.current = newBaseline;
           return next;
         });
-        backoff = 5000;
-      } catch {
-        backoff = Math.min(20000, backoff * 2);
-      } finally {
-        if (!cancelled) setTimeout(tick, backoff);
-      }
-    };
-    const id = setTimeout(tick, 5000);
-    return () => {
-      cancelled = true;
-      clearTimeout(id);
-    };
-  }, []);
-
-  // Periodic auto-save: send partial upserts (code/x/y/width/height)
-  useEffect(() => {
-    const save = async () => {
-      const current = latestThingsRef.current;
-      const prev = lastSavedMapRef.current;
-      const curMap = new Map<string, string>();
-      const upserts: any[] = [];
-      for (const t of current) {
-        if (!t?.id) continue;
-        const sanitized = sanitizeForGlobalSave(t);
-        const s = JSON.stringify(sanitized);
-        curMap.set(t.id, s);
-        const prevStr = prev.get(t.id);
-        if (prevStr !== s) {
-          // Build a minimal patch of changed top-level keys
-          const patch: any = { id: t.id };
-          const prevObj = prevStr ? JSON.parse(prevStr) : {};
-          const keys: (keyof Thing)[] = [
-            "code",
-            "x",
-            "y",
-            "width",
-            "height",
-          ];
-          for (const k of keys) {
-            if ((prevObj as any)[k] !== (sanitized as any)[k]) {
-              (patch as any)[k] = (sanitized as any)[k];
-            }
-          }
-          // If new object, ensure code and geometry are present
-          if (!prevStr) {
-            patch.code = sanitized.code;
-            patch.x = sanitized.x;
-            patch.y = sanitized.y;
-            patch.width = sanitized.width;
-            patch.height = sanitized.height;
-          }
-          upserts.push(patch);
+        const cur = new Map(lastSavedSnapshotRef.current);
+        for (const u of upserts) {
+          const snap = JSON.stringify({
+            code: String(u.code ?? ""),
+            x: u.x ?? 0,
+            y: u.y ?? 0,
+            width: u.width ?? 200,
+            height: u.height ?? 200,
+          });
+          cur.set(String(u.id), snap);
         }
-      }
-      const deletes: string[] = [];
-      for (const [id] of prev) {
-        if (!curMap.has(id)) deletes.push(id);
-      }
-      if (upserts.length === 0 && deletes.length === 0) return;
-      try {
-        const res = await fetch("/api/objects", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ upserts, deletes }),
-        });
-        if (res.ok) {
-          lastSavedMapRef.current = curMap;
-        }
-      } catch {}
-    };
-    const id = setInterval(save, 5000);
-    return () => clearInterval(id);
+        for (const id of deletes) cur.delete(String(id));
+        lastSavedSnapshotRef.current = cur;
+      };
+      ch.subscribe("update", handler);
+      return () => {
+        try {
+          ch.unsubscribe("update", handler);
+          const state = (ch as any).state as string | undefined;
+          if (state === "attached" || state === "attaching") {
+            // Detach before releasing to satisfy Ably requirements
+            ch.detach().finally(() => {
+              try {
+                client.channels.release("things");
+              } catch {}
+            });
+          } else {
+            client.channels.release("things");
+          }
+        } catch {}
+      };
+    } catch {}
   }, []);
 
   const [windowPos, setWindowPos] = useState({ x: 10, y: 10 });
@@ -355,8 +417,6 @@ export function Canvas() {
   const bgRef = useRef<HTMLDivElement>(null);
   const [isWindowOpen, setIsWindowOpen] = useState(false);
   // no file import/export in global mode
-
-  // no browser persistence
 
   const getAbsolutePos = (
     t: Thing,
@@ -427,6 +487,22 @@ export function Canvas() {
               editing={editing}
               scrollLeft={scrollPos.left}
               scrollTop={scrollPos.top}
+              onGeometryCommit={(id) => {
+                const t = latestThingsRef.current.find((tt) => tt.id === id);
+                if (!t) return;
+                postObjects({
+                  upserts: [
+                    {
+                      id: id!,
+                      code: String(t.code ?? ""),
+                      x: t.x ?? 0,
+                      y: t.y ?? 0,
+                      width: t.width ?? 200,
+                      height: t.height ?? 200,
+                    },
+                  ],
+                });
+              }}
             />
           ))}
         </div>
@@ -473,7 +549,6 @@ export function Canvas() {
             <button
               className="border bg-white px-4 py-1 rounded border-gray-300"
               onClick={() => {
-                // Re-evaluate all from their current code
                 handleChangeCode(
                   things.map((t) => t.code),
                   things.map((t) => t.id)
@@ -505,6 +580,7 @@ export function Canvas() {
                 onChange={(e) =>
                   handleChangeCode([e.target.value], [selected.id])
                 }
+                onBlur={() => selected?.id && flushCodeSave(selected.id)}
                 value={target?.code}
                 minRows={10}
                 maxRows={10}
