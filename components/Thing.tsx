@@ -15,6 +15,7 @@ import {
   SetStateAction,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { generateStyle } from "./generate-style";
@@ -28,6 +29,7 @@ export function ThingComponent({
   editing,
   scrollLeft = 0,
   scrollTop = 0,
+  onGeometryChange,
   onGeometryCommit,
 }: {
   thing: Thing;
@@ -38,6 +40,7 @@ export function ThingComponent({
   editing: boolean;
   scrollLeft?: number;
   scrollTop?: number;
+  onGeometryChange?: (id: string) => void;
   onGeometryCommit?: (id: string) => void;
 }) {
   const [size, setSize] = useState({
@@ -49,6 +52,7 @@ export function ThingComponent({
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0 });
   const [initialSize, setInitialSize] = useState({ width: 0, height: 0 });
+  const lastEmitRef = useRef(0);
   const handleMouseDown = (e: ReactMouseEvent<HTMLDivElement, MouseEvent>) => {
     const movableField = getField(things, thing.name, "movable");
     const movable = movableField ? getValue(things, movableField.value) : false;
@@ -136,6 +140,15 @@ export function ThingComponent({
             return p;
           });
         });
+        if (onGeometryChange) {
+          const now = Date.now();
+          if (now - lastEmitRef.current > 60) {
+            lastEmitRef.current = now;
+            try {
+              onGeometryChange(thing.id!);
+            } catch {}
+          }
+        }
       } else if (isResizing) {
         const dx = e.clientX - resizeStart.x;
         const dy = e.clientY - resizeStart.y;
@@ -153,6 +166,15 @@ export function ThingComponent({
               : p
           )
         );
+        if (onGeometryChange) {
+          const now = Date.now();
+          if (now - lastEmitRef.current > 60) {
+            lastEmitRef.current = now;
+            try {
+              onGeometryChange(thing.id!);
+            } catch {}
+          }
+        }
       }
     };
     document.addEventListener("mouseup", handleMouseUp);

@@ -2,7 +2,6 @@
 import { NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
 import { Thing } from "@/lib/objax";
-import { getAblyRest } from "@/lib/ably/server";
 
 const OBJECTS_ZSET = "objects:z";
 const objectKey = (id: string) => `objects:${id}`;
@@ -29,7 +28,10 @@ export async function GET(req: Request) {
       })
     );
     const nextCursor = ids.length === limit ? String(start + limit) : null;
-    return NextResponse.json({ things: items.filter(Boolean), cursor: nextCursor });
+    return NextResponse.json({
+      things: items.filter(Boolean),
+      cursor: nextCursor,
+    });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ things: [], cursor: null }, { status: 200 });
@@ -43,10 +45,6 @@ export async function POST(req: Request) {
       ? body.upserts
       : [];
     const deletes: string[] = Array.isArray(body?.deletes) ? body.deletes : [];
-    const sourceConnectionId: string | undefined =
-      typeof body?.sourceConnectionId === "string" && body.sourceConnectionId
-        ? body.sourceConnectionId
-        : undefined;
 
     // Write upserts to KV
     const mergedUpserts: any[] = [];
@@ -80,19 +78,6 @@ export async function POST(req: Request) {
         await kv.zrem(OBJECTS_ZSET, id);
       })
     );
-
-    // Broadcast change via Ably
-    try {
-      const rest = getAblyRest();
-      const channel = rest.channels.get("things");
-      await channel.publish("update", {
-        upserts: mergedUpserts,
-        deletes,
-        sourceConnectionId,
-      });
-    } catch (e) {
-      console.error("Ably publish failed", e);
-    }
 
     return NextResponse.json({ ok: true });
   } catch (e) {

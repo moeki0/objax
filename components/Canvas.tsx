@@ -20,6 +20,79 @@ export function Canvas() {
   const [scrollPos, setScrollPos] = useState({ left: 0, top: 0 });
   // Debounce timers for code saves per Thing id
   const saveTimersRef = useRef<Map<string, any>>(new Map());
+  // Buffer for delayed persistence to KV
+  const persistBufferRef = useRef<{
+    upserts: Map<string, { id: string; code: string; x: number; y: number; width: number; height: number }>;
+    deletes: Set<string>;
+    timer: any | null;
+  }>({ upserts: new Map(), deletes: new Set(), timer: null });
+
+  const getConnId = () => {
+    try {
+      const c = getAblyClient();
+      return (c.connection as any)?.id as string | undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const snapshotForId = (id: string) => {
+    const t = latestThingsRef.current.find((tt) => tt.id === id);
+    if (!t) return null;
+    return {
+      id,
+      code: String(t.code ?? ""),
+      x: t.x ?? 0,
+      y: t.y ?? 0,
+      width: t.width ?? 200,
+      height: t.height ?? 200,
+    };
+  };
+
+  const publishUpdate = async (
+    {
+      upserts = [] as Array<{ id: string; code?: string; x?: number; y?: number; width?: number; height?: number }>,
+      deletes = [] as string[],
+    } = {}
+  ) => {
+    try {
+      const client = getAblyClient();
+      const ch = client.channels.get("things");
+      await ch.publish("update", {
+        upserts,
+        deletes,
+        sourceConnectionId: getConnId(),
+      });
+    } catch {}
+  };
+
+  const schedulePersist = ({ ids = [] as string[], deletes = [] as string[], delay = 1200 } = {}) => {
+    const buf = persistBufferRef.current;
+    // Merge upserts
+    for (const id of ids) {
+      if (!id) continue;
+      const snap = snapshotForId(id);
+      if (!snap) continue;
+      buf.deletes.delete(id);
+      buf.upserts.set(id, snap);
+    }
+    // Merge deletes
+    for (const id of deletes) {
+      if (!id) continue;
+      buf.upserts.delete(id);
+      buf.deletes.add(id);
+    }
+    // Reset timer
+    if (buf.timer) clearTimeout(buf.timer);
+    buf.timer = setTimeout(async () => {
+      const upsertsArr = Array.from(buf.upserts.values());
+      const deletesArr = Array.from(buf.deletes.values());
+      buf.upserts.clear();
+      buf.deletes.clear();
+      buf.timer = null;
+      await postObjects({ upserts: upsertsArr, deletes: deletesArr });
+    }, delay);
+  };
 
   const scheduleCodeSave = (id: string, delay = 600) => {
     const timers = saveTimersRef.current;
@@ -39,18 +112,7 @@ export function Canvas() {
         height: t.height ?? 200,
       });
       if (prev === snapStr) return;
-      postObjects({
-        upserts: [
-          {
-            id,
-            code: String(t.code ?? ""),
-            x: t.x ?? 0,
-            y: t.y ?? 0,
-            width: t.width ?? 200,
-            height: t.height ?? 200,
-          },
-        ],
-      });
+      schedulePersist({ ids: [id], delay });
     }, delay);
     timers.set(id, handle);
   };
@@ -64,7 +126,14 @@ export function Canvas() {
     scheduleCodeSave(id, 0);
   };
   const postObjects = async ({
-    upserts = [] as Array<{ id: string; code?: string; x?: number; y?: number; width?: number; height?: number }>,
+    upserts = [] as Array<{
+      id: string;
+      code?: string;
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+    }>,
     deletes = [] as string[],
   }) => {
     if (upserts.length === 0 && deletes.length === 0) return;
@@ -82,7 +151,7 @@ export function Canvas() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ upserts, deletes, sourceConnectionId: connId }),
+        body: JSON.stringify({ upserts, deletes }),
       });
       if (res.ok) {
         // Update local snapshot cache to avoid redundant interval writes
@@ -91,10 +160,10 @@ export function Canvas() {
           const t = latestThingsRef.current.find((tt) => tt.id === u.id);
           const snap = JSON.stringify({
             code: String(u.code ?? t?.code ?? ""),
-            x: u.x ?? (t?.x ?? 0),
-            y: u.y ?? (t?.y ?? 0),
-            width: u.width ?? (t?.width ?? 200),
-            height: u.height ?? (t?.height ?? 200),
+            x: u.x ?? t?.x ?? 0,
+            y: u.y ?? t?.y ?? 0,
+            width: u.width ?? t?.width ?? 200,
+            height: u.height ?? t?.height ?? 200,
           });
           cur.set(u.id, snap);
         }
@@ -125,26 +194,18 @@ export function Canvas() {
         imagePrompt: "",
       },
     ]);
-    // Persist immediately so others see it
-    postObjects({
-      upserts: [
-        {
-          id,
-          code: "name is",
-          x: left,
-          y: top,
-          width: 100,
-          height: 100,
-        },
-      ],
-    });
+    // Ably publish immediately; persist later
+    const up = { id, code: "name is", x: left, y: top, width: 100, height: 100 };
+    publishUpdate({ upserts: [up] });
+    schedulePersist({ ids: [id] });
   };
   const handleDelete = () => {
     if (!selected) return;
     setThings((prev) => prev.filter((p) => p.id !== selected.id));
     setSelected(null);
-    // Persist deletion
-    postObjects({ deletes: [selected.id!] });
+    // Ably publish immediately; persist later
+    publishUpdate({ deletes: [selected.id!] });
+    schedulePersist({ deletes: [selected.id!] });
   };
   const handleChangeCode = (
     values: (string | undefined)[],
@@ -194,7 +255,18 @@ export function Canvas() {
         return p;
       });
     });
-    // Debounce save for target ids
+    // Ably publish immediately; persist later (debounced)
+    const ups = ids
+      .map((id) => (id ? snapshotForId(id) : null))
+      .filter(Boolean) as Array<{
+      id: string;
+      code: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }>;
+    if (ups.length) publishUpdate({ upserts: ups });
     ids.forEach((id) => id && scheduleCodeSave(id));
   };
   const target = things.find((t) => t.id === selected?.id);
@@ -298,7 +370,9 @@ export function Canvas() {
         const data = msg?.data || {};
         // Ignore our own updates to prevent transient flicker
         try {
-          const clientConnId = (client.connection as any)?.id as string | undefined;
+          const clientConnId = (client.connection as any)?.id as
+            | string
+            | undefined;
           if (clientConnId && data?.sourceConnectionId === clientConnId) return;
         } catch {}
         const upserts = Array.isArray(data?.upserts) ? data.upserts : [];
@@ -319,7 +393,8 @@ export function Canvas() {
           const built = incoming.map((g) => buildFromGlobal(g));
           for (const b of built) {
             const idx = next.findIndex((t) => t.id === b.id);
-            if (idx >= 0) next = [...next.slice(0, idx), b, ...next.slice(idx + 1)];
+            if (idx >= 0)
+              next = [...next.slice(0, idx), b, ...next.slice(idx + 1)];
             else next = [...next, b];
           }
           return next;
@@ -487,21 +562,33 @@ export function Canvas() {
               editing={editing}
               scrollLeft={scrollPos.left}
               scrollTop={scrollPos.top}
+              onGeometryChange={(id) => {
+                const t = latestThingsRef.current.find((tt) => tt.id === id);
+                if (!t) return;
+                const up = {
+                  id: id!,
+                  code: String(t.code ?? ""),
+                  x: t.x ?? 0,
+                  y: t.y ?? 0,
+                  width: t.width ?? 200,
+                  height: t.height ?? 200,
+                };
+                publishUpdate({ upserts: [up] });
+                schedulePersist({ ids: [id!] });
+              }}
               onGeometryCommit={(id) => {
                 const t = latestThingsRef.current.find((tt) => tt.id === id);
                 if (!t) return;
-                postObjects({
-                  upserts: [
-                    {
-                      id: id!,
-                      code: String(t.code ?? ""),
-                      x: t.x ?? 0,
-                      y: t.y ?? 0,
-                      width: t.width ?? 200,
-                      height: t.height ?? 200,
-                    },
-                  ],
-                });
+                const up = {
+                  id: id!,
+                  code: String(t.code ?? ""),
+                  x: t.x ?? 0,
+                  y: t.y ?? 0,
+                  width: t.width ?? 200,
+                  height: t.height ?? 200,
+                };
+                publishUpdate({ upserts: [up] });
+                schedulePersist({ ids: [id!] });
               }}
             />
           ))}
