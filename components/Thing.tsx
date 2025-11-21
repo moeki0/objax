@@ -255,34 +255,6 @@ export function ThingComponent({
     }
     return { x: t.x, y: t.y };
   };
-  const substituteIt = (expr: ValueType, replacement: ValueType): ValueType => {
-    if (!expr || typeof expr !== "object") return expr;
-    if ((expr as any).type === "It") return replacement;
-    if ((expr as any).type === "Array") {
-      return {
-        ...(expr as any),
-        values: ((expr as any).values || []).map((v: any) =>
-          substituteIt(v, replacement)
-        ),
-      } as any;
-    }
-    if ((expr as any).type === "BinaryOp") {
-      return {
-        ...(expr as any),
-        left: substituteIt((expr as any).left, replacement),
-        right: substituteIt((expr as any).right, replacement),
-      } as any;
-    }
-    if ((expr as any).type === "Eq") {
-      return {
-        ...(expr as any),
-        left: substituteIt((expr as any).left as any, replacement) as any,
-        right: substituteIt((expr as any).right as any, replacement) as any,
-      } as any;
-    }
-    // Other nodes: return shallow copy for immutability
-    return { ...(expr as any) } as any;
-  };
 
   const handleClick = () => {
     const devOnlyField = getField(things, thing.name, "devOnly");
@@ -305,6 +277,7 @@ export function ThingComponent({
         (ea.transition.path[0] as Name).name,
         (ea.transition.path[1] as Name).name
       );
+      console.log(transition)
       if (transition) {
         const field = getField(
           things,

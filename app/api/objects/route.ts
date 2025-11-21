@@ -56,7 +56,9 @@ export async function POST(req: Request) {
     const upserts: Partial<Thing>[] = Array.isArray(body?.upserts)
       ? body.upserts
       : [];
-    const deletes: string[] = Array.isArray(body?.deletes) ? body.deletes : [];
+    const deletes: Partial<Thing>[] = Array.isArray(body?.deletes)
+      ? body.deletes
+      : [];
 
     await Promise.all(
       upserts.map(async (obj) => {
@@ -112,10 +114,9 @@ export async function POST(req: Request) {
     );
 
     await Promise.all(
-      deletes.map(async (id) => {
-        if (!id || typeof id !== "string") return;
-        await kv.del(objectKey(id));
-        await kv.zrem(OBJECTS_ZSET, id);
+      deletes.map(async (object) => {
+        await kv.del(objectKey(object.id!));
+        await kv.zrem(OBJECTS_ZSET, object.id);
       })
     );
 
