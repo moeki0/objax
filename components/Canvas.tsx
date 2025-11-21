@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
+import { GoSignOut } from "react-icons/go";
 import {
   MouseEventHandler,
   useCallback,
@@ -14,8 +15,10 @@ import TextareaAutosize from "react-textarea-autosize";
 import { ThingList } from "./ThingList";
 import { FiMenu } from "react-icons/fi";
 import { getAblyClient } from "@/lib/ably/client";
+import { signOut, useSession } from "next-auth/react";
 
 export function Canvas() {
+  const { data: session } = useSession();
   const [parseError, setParseError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Thing | null>(null);
   const [things, setThings] = useState<Thing[]>([]);
@@ -61,16 +64,85 @@ export function Canvas() {
 
   const timeout = useRef<Date>(new Date());
 
-  function debounce(func: any, wait: number) {
+  async function debounce(func: () => Promise<any>, wait: number) {
     const time = new Date(Date.parse(timeout.current.toISOString()));
     time!.setSeconds(
       time.getSeconds() + wait > 59 ? 0 : time.getSeconds() + wait
     );
     if (new Date() > time) {
-      func();
+      await func();
       timeout.current = new Date();
     }
   }
+
+  const postObjects = async ({
+    upserts = [] as Thing[],
+    deletes = [] as Thing[],
+  }) => {
+    if (upserts.length === 0 && deletes.length === 0) return;
+    try {
+      const currentUser = session?.user
+        ? {
+            name: session.user.name ?? null,
+            email: session.user.email ?? null,
+            image: session.user.image ?? null,
+            id: (session as any).user?.id ?? null,
+          }
+        : null;
+
+      const upsertsWithUser = currentUser
+        ? upserts.map((obj) => {
+            const existing = Array.isArray((obj as any).users)
+              ? ((obj as any).users as any[])
+              : [];
+            const merged = [
+              ...existing,
+              {
+                name: currentUser.name,
+                email: currentUser.email,
+                image: currentUser.image,
+                id: currentUser.id,
+              },
+            ];
+            // de-dup by email if present
+            const seen = new Set<string | null>();
+            const dedup = merged.filter((u) => {
+              const key = (u?.email as any) ?? null;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+            return { ...obj, users: dedup } as Thing;
+          })
+        : upserts;
+
+      const res = await fetch("/api/objects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ upserts: upsertsWithUser, deletes }),
+      });
+
+      if (res.ok) {
+        // Update local snapshot cache to avoid redundant interval writes
+        const cur = new Map(lastSavedSnapshotRef.current);
+        for (const u of upsertsWithUser) {
+          const t = latestThingsRef.current.find((tt) => tt.id === u.id);
+          const snap = JSON.stringify({
+            code: String((u as any).code ?? t?.code ?? ""),
+            x: (u as any).x ?? t?.x ?? 0,
+            y: (u as any).y ?? t?.y ?? 0,
+            width: (u as any).width ?? t?.width ?? 200,
+            height: (u as any).height ?? t?.height ?? 200,
+          });
+          cur.set(u.id!, snap);
+        }
+        for (const thing of deletes) cur.delete(thing.id!);
+        lastSavedSnapshotRef.current = cur;
+      }
+    } catch {}
+  };
 
   const schedulePersist = useCallback(
     async ({ things = [] as Thing[], deletes = [] as Thing[] } = {}) => {
@@ -86,16 +158,20 @@ export function Canvas() {
         buf.upserts.delete(thing.id!);
         buf.deletes.set(thing.id!, thing);
       }
-      // Reset timer
+      // Reset timer and immediately flush (no extra delay in this buffer)
       if (buf.timer) clearTimeout(buf.timer);
       const upsertsArr = Array.from(buf.upserts.values());
       const deletesArr = Array.from(buf.deletes.values());
       buf.upserts.clear();
       buf.deletes.clear();
       buf.timer = null;
-      await postObjects({ upserts: upsertsArr, deletes: deletesArr });
+      debounce(
+        async () =>
+          await postObjects({ upserts: upsertsArr, deletes: deletesArr }),
+        2
+      );
     },
-    []
+    [session]
   );
 
   const scheduleCodeSave = (id: string, thing: Thing) => {
@@ -116,38 +192,6 @@ export function Canvas() {
       timers.delete(id);
     }
     scheduleCodeSave(id, thing);
-  };
-  const postObjects = async ({
-    upserts = [] as Thing[],
-    deletes = [] as Thing[],
-  }) => {
-    if (upserts.length === 0 && deletes.length === 0) return;
-    try {
-      const res = await fetch("/api/objects", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ upserts, deletes }),
-      });
-      if (res.ok) {
-        // Update local snapshot cache to avoid redundant interval writes
-        const cur = new Map(lastSavedSnapshotRef.current);
-        for (const u of upserts) {
-          const t = latestThingsRef.current.find((tt) => tt.id === u.id);
-          const snap = JSON.stringify({
-            code: String(u.code ?? t?.code ?? ""),
-            x: u.x ?? t?.x ?? 0,
-            y: u.y ?? t?.y ?? 0,
-            width: u.width ?? t?.width ?? 200,
-            height: u.height ?? t?.height ?? 200,
-          });
-          cur.set(u.id!, snap);
-        }
-        for (const thing of deletes) cur.delete(thing.id!);
-        lastSavedSnapshotRef.current = cur;
-      }
-    } catch {}
   };
   const handleAdd = () => {
     const left = scrollRef.current?.scrollLeft ?? 0;
@@ -652,7 +696,10 @@ export function Canvas() {
               }}
               onGeometryChange={(id, updatedThing) => {
                 publishUpdate({ upserts: [updatedThing] });
-                schedulePersist({ things: [updatedThing] });
+                debounce(
+                  async () => await schedulePersist({ things: [updatedThing] }),
+                  2
+                );
               }}
             />
           ))}
@@ -757,6 +804,14 @@ export function Canvas() {
         className="fixed bottom-6 right-6 cursor-pointer hover:bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center bg-gray-50 shadow-lg border border-gray-300"
       >
         <FiMenu />
+      </button>
+      <button
+        onClick={() => signOut({ callbackUrl: "/login" })}
+        className="fixed bottom-[136px] right-6 cursor-pointer hover:bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center bg-gray-50 shadow-lg border border-gray-300 text-sm"
+        title="Sign out"
+        type="button"
+      >
+        <GoSignOut />
       </button>
       <button
         onClick={() => setIsSyntaxOpen(true)}

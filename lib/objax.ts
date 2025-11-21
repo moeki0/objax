@@ -116,6 +116,7 @@ export interface Thing {
   transitions?: TransitionType[];
   fields?: FieldType[];
   duplicate?: Duplicate;
+  users?: { name?: string | null; email?: string | null; image?: string | null; id?: string | null }[];
 }
 
 export function getField(
