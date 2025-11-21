@@ -159,7 +159,6 @@ export function getValue(
   t: ValueType,
   it?: FieldValueType
 ): any {
-  console.log(t);
   if (t === undefined) {
     return;
   }
