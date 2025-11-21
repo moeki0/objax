@@ -106,8 +106,6 @@ export async function POST(req: Request) {
             });
           } catch {}
         }
-
-        console.log(toSave.users)
         await kv.set(key, toSave);
         await kv.zadd(OBJECTS_ZSET, { score: Date.now(), member: id });
       })
