@@ -2,19 +2,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ThingComponent } from "./Thing";
-import { getThing, Thing } from "@/lib/objax";
-import { FiMenu } from "react-icons/fi";
 import { getAblyClient } from "@/lib/ably/client";
-import { useRouter } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { Thing } from "@/lib/objax";
+import { FiMenu } from "react-icons/fi";
+import { useSession } from "next-auth/react";
 import { useTransitionIndex } from "./hooks/useTransitionIndex";
 import { useIntervalTransitions } from "./hooks/useIntervalTransitions";
+import { CanvasViewport } from "./canvas/CanvasViewport";
 import { ControlWindow } from "./canvas/ControlWindow";
 import { SyntaxHelpModal } from "./canvas/SyntaxHelpModal";
+import { useWorldLoading } from "./hooks/useWorldLoading";
+import { useRealtimeChannel } from "./hooks/useRealtimeChannel";
+import { useThingEditor } from "./hooks/useThingEditor";
 
 export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
-  const router = useRouter();
   const { data: session } = useSession();
   const [parseError, setParseError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Thing | null>(null);
@@ -26,8 +27,6 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
   const [editing, setEditing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollPos, setScrollPos] = useState({ left: 0, top: 0 });
-  // Debounce timers for code saves per Thing id
-  const saveTimersRef = useRef<Map<string, any>>(new Map());
   // Buffer for delayed persistence to KV
   const persistBufferRef = useRef<{
     upserts: Map<string, Thing>;
@@ -36,12 +35,24 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
   }>({ upserts: new Map(), deletes: new Map(), timer: null });
   const worldIdRef = useRef<string | null>(null);
   worldIdRef.current = worldId;
-  const currentCode = useRef("");
+  const currentCodeRef = useRef("");
   const {
     getNextValue: getNextTransitionValue,
     keyFromEventAction,
     pruneKeys: pruneTransitionKeys,
   } = useTransitionIndex();
+  useWorldLoading({
+    initialWorldUrl,
+    worldId,
+    setWorldId,
+    setThings,
+    lastSavedSnapshotRef,
+  });
+  useRealtimeChannel({
+    worldId,
+    setThings,
+    lastSavedSnapshotRef,
+  });
 
   const getConnId = () => {
     try {
@@ -195,214 +206,24 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
     [session]
   );
 
-  const scheduleCodeSave = (id: string, thing: Thing) => {
-    const timers = saveTimersRef.current;
-    if (timers.has(id)) {
-      clearTimeout(timers.get(id));
-    }
-    const handle = setTimeout(() => {
-      schedulePersist({ things: [thing] });
-    }, 600);
-    timers.set(id, handle);
-  };
-
-  const flushCodeSave = (id: string, thing: Thing) => {
-    const timers = saveTimersRef.current;
-    if (timers.has(id)) {
-      clearTimeout(timers.get(id));
-      timers.delete(id);
-    }
-    scheduleCodeSave(id, thing);
-  };
-  const handleAdd = () => {
-    if ((things?.length || 0) >= 1000) return; // client-side cap per world
-    const left = scrollRef.current?.scrollLeft ?? 0;
-    const top = scrollRef.current?.scrollTop ?? 0;
-    const id = Math.random().toString(32).substring(2);
-    const newThing = {
-      id,
-      worldId: worldId || undefined,
-      name: "",
-      x: left,
-      text: { type: "Text" as const, value: { type: "String", value: "" } },
-      y: top,
-      width: 100,
-      height: 100,
-      code: `name is`,
-      sticky: undefined,
-      eventActions: [],
-      transitions: [],
-      fields: [],
-      imagePrompt: "",
-    };
-    setThings((c) => [...c, newThing]);
-    publishUpdate({ upserts: [newThing] });
-    schedulePersist({ things: [newThing] });
-  };
-  const handleDelete = () => {
-    if (!selected) return;
-    setThings((prev) => prev.filter((p) => p.id !== selected.id));
-    setSelected(null);
-    currentCode.current = "";
-    // Ably publish immediately; persist later
-    publishUpdate({ deletes: [selected.id!] });
-    schedulePersist({ deletes: [selected!] });
-  };
-  const handleResetSelected = () => {
-    if (!selected) return;
-    handleChangeCode([selected.code || ""], [selected.id]);
-  };
-  const handleChangeCode = (
-    values: (string | undefined)[],
-    ids: (string | undefined)[]
-  ) => {
-    const newThings = things.map((p) => {
-      if (ids.includes(p.id!)) {
-        const code = values[ids.findIndex((i) => i === p.id!)]!;
-        let result;
-        try {
-          result = getThing(code);
-          setParseError(null);
-        } catch (e) {
-          setParseError(String(e));
-        }
-        if (!result) {
-          return { ...p, code };
-        }
-        const dup = result.duplicate;
-        if (dup) {
-          const target = things.find((t) => t.name === dup.name.name);
-          return {
-            ...target,
-            duplicate: p.duplicate,
-            code,
-            name: result.name,
-            id: p.id,
-            x: p.x,
-            y: p.y,
-            width: p.width,
-            height: p.height,
-            eventActions: result.eventActions,
-          };
-        }
-        const image = result.fields?.find((f) => f.name.name === "image");
-        return {
-          ...p,
-          x: resetPos(result, p).x,
-          y: resetPos(result, p).y,
-          code,
-          name: result.name,
-          sticky: result.sticky,
-          fields: result.fields,
-          transitions: result.transitions,
-          eventActions: result.eventActions,
-          operations: (result as any).operations,
-          image,
-        };
-      }
-      return p;
-    });
-    setThings(newThings);
-    const updatedThings = newThings.filter((t) => ids.includes(t.id));
-    if (updatedThings.length) publishUpdate({ upserts: updatedThings });
-    ids.forEach(
-      (id, index) => id && scheduleCodeSave(id, updatedThings[index])
-    );
-  };
-
-  // Build a Thing from global code + personal state overlay
-  const buildFromGlobal = (g: Partial<Thing>): Thing => {
-    const id = g.id as string;
-    const code = g.code || "";
-    let parsed;
-    try {
-      parsed = getThing(code);
-    } catch {
-      parsed = {
-        name: "",
-        fields: [],
-        transitions: [],
-        eventActions: [],
-        sticky: undefined,
-      } as any;
-    }
-    const base: Thing = {
-      id,
-      code,
-      name: parsed.name,
-      sticky: parsed.sticky,
-      eventActions: parsed.eventActions,
-      transitions: parsed.transitions,
-      operations: (parsed as any).operations,
-      fields: parsed.fields,
-      width: (g as any)?.width ?? 200,
-      height: (g as any)?.height ?? 200,
-      x: (g as any)?.x ?? 0,
-      y: (g as any)?.y ?? 0,
-    };
-    return base;
-  };
-
-  // Load globals and merge with personal state
-  const reloadFromGlobal = async () => {
-    try {
-      const res = await fetch(
-        `/api/objects?worldId=${encodeURIComponent(
-          worldId || "default"
-        )}&limit=1000`,
-        { cache: "no-store" }
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      const incoming = data.things ?? [];
-      setThings(incoming);
-      const m = new Map<string, string>();
-      for (const t of incoming) {
-        if (!t?.id) continue;
-        const snapshot = JSON.stringify({
-          code: String(t.code ?? ""),
-          x: (t as any)?.x ?? 0,
-          y: (t as any)?.y ?? 0,
-          width: (t as any)?.width ?? 200,
-          height: (t as any)?.height ?? 200,
-        });
-        m.set(t.id as string, snapshot);
-      }
-      lastSavedSnapshotRef.current = m;
-    } catch {}
-  };
-
-  // Resolve world by URL when provided
-  useEffect(() => {
-    let cancelled = false;
-    const loadFromUrl = async () => {
-      if (!initialWorldUrl) return;
-      try {
-        const r = await fetch(
-          `/api/worlds/${encodeURIComponent(initialWorldUrl)}`,
-          { cache: "no-store" }
-        );
-        if (!r.ok) return;
-        const dj = await r.json();
-        const w = dj?.world;
-        if (!cancelled) {
-          if (w?.id) setWorldId(w.id);
-          else router.push("/worlds");
-        }
-      } catch {}
-    };
-    loadFromUrl();
-    return () => {
-      cancelled = true;
-    };
-  }, [initialWorldUrl]);
-
-  // Load things whenever world changes
-  useEffect(() => {
-    if (!worldId) return;
-    reloadFromGlobal();
-  }, [worldId]);
-
+  const {
+    handleAdd,
+    handleChangeCode,
+    handleDelete,
+    handleResetSelected,
+    flushCodeSave,
+  } = useThingEditor({
+    things,
+    setThings,
+    worldId,
+    scrollRef,
+    publishUpdate,
+    schedulePersist,
+    setParseError,
+    currentCodeRef,
+    selected,
+    setSelected,
+  });
   // Center the viewport on the 100000x100000 canvas at mount
   useEffect(() => {
     const el = scrollRef.current;
@@ -418,90 +239,6 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
   }, []);
 
   // Removed periodic auto-save to avoid race conflicts while dragging.
-
-  // Realtime updates via Ably: apply update payload without full reload
-  useEffect(() => {
-    if (!worldId) return;
-    try {
-      const client = getAblyClient();
-      const ch = client.channels.get(`things:${worldId || "default"}`);
-      const handler = (msg: any) => {
-        const data = msg?.data || {};
-        // Ignore our own updates to prevent transient flicker
-        try {
-          const clientConnId = (client.connection as any)?.id as
-            | string
-            | undefined;
-          if (clientConnId && data?.sourceConnectionId === clientConnId) return;
-        } catch {}
-        const upserts = Array.isArray(data?.upserts) ? data.upserts : [];
-        const deletes = Array.isArray(data?.deletes) ? data.deletes : [];
-        if (upserts.length === 0 && deletes.length === 0) return;
-        setThings((prev) => {
-          let next = prev.filter((t) => !deletes.includes(t.id!));
-          const incoming: any[] = upserts.filter((u: any) => u?.id);
-          const built = incoming.map((u) => {
-            const base = buildFromGlobal({
-              id: String(u.id),
-              code: String(u.code ?? ""),
-              x: typeof u.x === "number" ? u.x : undefined,
-              y: typeof u.y === "number" ? u.y : undefined,
-              width: typeof u.width === "number" ? u.width : undefined,
-              height: typeof u.height === "number" ? u.height : undefined,
-            });
-            if (Array.isArray(u.fields) && Array.isArray(base.fields)) {
-              const overlay = new Map<string, any>(
-                u.fields.map((f: any) => [f?.name?.name, f])
-              );
-              base.fields = base.fields.map((f: any) => {
-                const ov = overlay.get(f?.name?.name);
-                if (!ov) return f;
-                return { ...f, value: ov.value };
-              });
-            }
-            return base;
-          });
-          for (const b of built) {
-            const idx = next.findIndex((t) => t.id === b.id);
-            if (idx >= 0)
-              next = [...next.slice(0, idx), b, ...next.slice(idx + 1)];
-            else next = [...next, b];
-          }
-          return next;
-        });
-        const cur = new Map(lastSavedSnapshotRef.current);
-        for (const u of upserts) {
-          const snap = JSON.stringify({
-            code: String(u.code ?? ""),
-            x: u.x ?? 0,
-            y: u.y ?? 0,
-            width: u.width ?? 200,
-            height: u.height ?? 200,
-          });
-          cur.set(String(u.id), snap);
-        }
-        for (const id of deletes) cur.delete(String(id));
-        lastSavedSnapshotRef.current = cur;
-      };
-      ch.subscribe("update", handler);
-      return () => {
-        try {
-          ch.unsubscribe("update", handler);
-          const state = (ch as any).state as string | undefined;
-          if (state === "attached" || state === "attaching") {
-            // Detach before releasing to satisfy Ably requirements
-            ch.detach().finally(() => {
-              try {
-                client.channels.release(`things:${worldId || "default"}`);
-              } catch {}
-            });
-          } else {
-            client.channels.release(`things:${worldId || "default"}`);
-          }
-        } catch {}
-      };
-    } catch {}
-  }, [worldId]);
 
   const bgRef = useRef<HTMLDivElement>(null);
   const [isWindowOpen, setIsWindowOpen] = useState(false);
@@ -537,32 +274,6 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
     return { x: p.x + x, y: p.y + y };
   };
 
-  const resetPos = (
-    t: Thing,
-    prev: Thing,
-    seen = new Set<string>()
-  ): {
-    x: number;
-    y: number;
-  } => {
-    if (t.sticky === prev.sticky) return { x: prev.x!, y: prev.y! };
-    const x = prev.x!;
-    const y = prev.y!;
-    const parent = things.find((tt) => tt.name === prev.sticky);
-    const currentParent = things.find((tt) => tt.name === t.sticky);
-    if (!currentParent && !parent) return { x, y };
-    if (!currentParent && parent) {
-      if (seen.has(t.name)) return { x, y };
-      seen.add(t.name);
-      const p = resetPos(parent, parent, seen);
-      return { x: p.x + x, y: p.y + x };
-    }
-    if (seen.has(t.name)) return { x, y };
-    seen.add(t.name);
-    if (!currentParent) return { x, y };
-    return { x: 0, y: 0 };
-  };
-
   const centerOnThing = (t: Thing) => {
     const sc = scrollRef.current;
     if (!sc) return;
@@ -578,59 +289,22 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
 
   return (
     <div className="w-screen h-screen relative">
-      {/* World selection UI removed; use /worlds page instead */}
-      <div
-        ref={scrollRef}
-        className="w-screen h-screen bg-white overflow-scroll"
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          if (
-            scrollPos.left !== el.scrollLeft ||
-            scrollPos.top !== el.scrollTop
-          ) {
-            setScrollPos({ left: el.scrollLeft, top: el.scrollTop });
-          }
-        }}
-        onClick={(e) => {
-          if (e.metaKey) {
-            setIsWindowOpen(!isWindowOpen);
-          }
-        }}
-      >
-        <div
-          className="relative overflow-visible"
-          ref={bgRef}
-          style={{ width: 100000, height: 100000 }}
-        >
-          {things.map((thing) => (
-            <ThingComponent
-              things={things}
-              key={thing.id}
-              selected={selected}
-              setThings={setThings}
-              thing={thing}
-              setSelected={() => {
-                currentCode.current = thing.code || "";
-                setSelected(thing);
-              }}
-              editing={editing}
-              scrollLeft={scrollPos.left}
-              scrollTop={scrollPos.top}
-              onActionUpdate={(ids, updatedList) => {
-                if (ids.length) publishUpdate({ upserts: updatedList });
-                if (ids.length) schedulePersist({ things: updatedList });
-              }}
-              onGeometryChange={(id, updatedThing) => {
-                publishUpdate({ upserts: [updatedThing] });
-                debounce(
-                  async () => await schedulePersist({ things: [updatedThing] }),
-                  2
-                );
-              }}
-            />
-          ))}
-        </div>
-      </div>
+      <CanvasViewport
+        things={things}
+        selected={selected}
+        editing={editing}
+        scrollPos={scrollPos}
+        setScrollPos={setScrollPos}
+        setSelected={setSelected}
+        setThings={setThings}
+        currentCode={currentCodeRef}
+        publishUpdate={publishUpdate}
+        schedulePersist={schedulePersist}
+        debounce={debounce}
+        scrollRef={scrollRef}
+        bgRef={bgRef}
+        onToggleWindow={() => setIsWindowOpen(!isWindowOpen)}
+      />
       <ControlWindow
         isOpen={isWindowOpen}
         onAdd={handleAdd}
@@ -646,7 +320,7 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
           setSelected(t);
           if (t) centerOnThing(t);
         }}
-        currentCodeRef={currentCode}
+        currentCodeRef={currentCodeRef}
         parseError={parseError}
       />
       <button
