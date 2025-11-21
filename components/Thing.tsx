@@ -147,7 +147,7 @@ export function ThingComponent({
           if (now - lastEmitRef.current > 60) {
             lastEmitRef.current = now;
             try {
-              onGeometryChange(thing.id!, thing);
+              onGeometryChange(thing.id!, { ...thing, x, y });
             } catch {}
           }
         }
@@ -335,26 +335,7 @@ export function ThingComponent({
     if (!t) {
       return "";
     }
-    if (!t.value) {
-      return "";
-    }
-    if (t.value.type === "String") {
-      return t.value.value;
-    }
-    if (t.value.type === "Integer") {
-      return t.value;
-    }
-    if (t.value.type === "Reference") {
-      const field = getField(
-        things,
-        t.value.path[0].name,
-        t.value.path[1]?.name
-      )?.value;
-      if (!field) {
-        return "";
-      }
-      return getValue(things, field);
-    }
+    return getValue(things, t.value);
   }, [things, thing]);
 
   const fontSize = getField(things, thing.name, "fontSize");
@@ -400,7 +381,7 @@ export function ThingComponent({
         onClick={handleClick}
       >
         <div className="flex justify-center flex-col gap-2 items-center h-full w-full p-1">
-          {String(text)}
+          <pre className="font-sans">{String(text)}</pre>
           {image && (
             // eslint-disable-next-line @next/next/no-img-element
             <img

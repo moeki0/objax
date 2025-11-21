@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { parse } from "./lang";
 
 export interface Name {
@@ -84,11 +85,17 @@ export interface IntegerType {
   value: number;
 }
 
+export interface ArrayType {
+  type: "Array";
+  values: ValueType[];
+}
+
 export type ValueType =
   | BooleanType
   | StringType
   | IntegerType
   | BinaryOp
+  | ArrayType
   | FieldValueType
   | EqType
   | OrType
@@ -124,7 +131,7 @@ export function getField(
 export function getValue(
   things: Thing[],
   t: ValueType | EqType
-): boolean | string | number | undefined {
+): any {
   if (t.type === "Eq") {
     return getValue(things, t.left) === getValue(things, t.right);
   } else if (t.type === "Or") {
@@ -139,8 +146,22 @@ export function getValue(
     const v = getValue(things, t.operand);
     return !Boolean(v);
   } else if (t.type === "BinaryOp") {
-    const left = Number(getValue(things, t.left));
-    const right = Number(getValue(things, t.right));
+    const leftVal = getValue(things, t.left);
+    const rightVal = getValue(things, t.right);
+    if (t.op === "_") {
+      const lIsArr = Array.isArray(leftVal);
+      const rIsArr = Array.isArray(rightVal);
+      if (lIsArr && rIsArr) {
+        return [...(leftVal as any[]), ...(rightVal as any[])];
+      } else if (lIsArr) {
+        return [...(leftVal as any[]), rightVal];
+      } else if (rIsArr) {
+        return [leftVal, ...(rightVal as any[])];
+      }
+      return String(leftVal ?? "") + String(rightVal ?? "");
+    }
+    const left = Number(leftVal);
+    const right = Number(rightVal);
     if (t.op === "+") {
       return left + right;
     } else if (t.op === "-") {
@@ -151,13 +172,54 @@ export function getValue(
       return left / right;
     }
   } else if (t.type === "Reference") {
+    // Built-in Time namespace support
+    const ns = t.path[0]?.name;
+    const key = t.path[1]?.name;
+    if (ns === "Time" && key) {
+      const now = new Date();
+      switch (key) {
+        case "year":
+          return now.getFullYear();
+        case "month":
+          // 1-12 for human-friendly month
+          return now.getMonth() + 1;
+        case "day":
+          // 0-6 (Sunday-Saturday) to align with JS Date
+          return now.getDay();
+        case "date":
+          // Day of month 1-31
+          return now.getDate();
+        case "hour":
+          return now.getHours();
+        case "minute":
+          return now.getMinutes();
+        case "second":
+          return now.getSeconds();
+        case "minisecond":
+          // Milliseconds; name kept as requested
+          return now.getMilliseconds();
+        case "epochSeconds":
+        case "unix":
+          return Math.floor(now.getTime() / 1000);
+        case "epochMilliseconds":
+        case "epochMiliseconds":
+        case "unixMs":
+          return now.getTime();
+        default:
+          break;
+      }
+    }
     const field = getField(things, t.path[0].name, t.path[1]?.name);
     if (!field) {
       return undefined;
     }
     return getValue(things, field.value);
   } else {
-    return t.value;
+    if ((t as any).type === "Array") {
+      const arr = (t as ArrayType).values.map((v) => getValue(things, v));
+      return arr;
+    }
+    return (t as any).value;
   }
 }
 

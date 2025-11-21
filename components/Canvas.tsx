@@ -1,7 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { MouseEventHandler, useEffect, useRef, useState } from "react";
+import {
+  MouseEventHandler,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ThingComponent } from "./Thing";
 import { getThing, getValue, Thing } from "@/lib/objax";
 import TextareaAutosize from "react-textarea-autosize";
@@ -27,6 +33,7 @@ export function Canvas() {
     deletes: Map<string, Thing>;
     timer: any | null;
   }>({ upserts: new Map(), deletes: new Map(), timer: null });
+  const currentCode = useRef("");
 
   const getConnId = () => {
     try {
@@ -52,43 +59,53 @@ export function Canvas() {
     } catch {}
   };
 
-  const schedulePersist = ({
-    things = [] as Thing[],
-    deletes = [] as Thing[],
-    delay = 1200,
-  } = {}) => {
-    const buf = persistBufferRef.current;
-    // Merge upserts
-    for (const thing of things) {
-      buf.deletes.delete(thing.id!);
-      buf.upserts.set(thing.id!, thing);
+  const timeout = useRef<Date>(new Date());
+
+  function debounce(func: any, wait: number) {
+    const time = new Date(Date.parse(timeout.current.toISOString()));
+    time!.setSeconds(
+      time.getSeconds() + wait > 59 ? 0 : time.getSeconds() + wait
+    );
+    if (new Date() > time) {
+      func();
+      timeout.current = new Date();
     }
-    // Merge deletes
-    for (const thing of deletes) {
-      if (!thing) continue;
-      buf.upserts.delete(thing.id!);
-      buf.deletes.set(thing.id!, thing);
-    }
-    // Reset timer
-    if (buf.timer) clearTimeout(buf.timer);
-    buf.timer = setTimeout(async () => {
+  }
+
+  const schedulePersist = useCallback(
+    async ({ things = [] as Thing[], deletes = [] as Thing[] } = {}) => {
+      const buf = persistBufferRef.current;
+      // Merge upserts
+      for (const thing of things) {
+        buf.deletes.delete(thing.id!);
+        buf.upserts.set(thing.id!, thing);
+      }
+      // Merge deletes
+      for (const thing of deletes) {
+        if (!thing) continue;
+        buf.upserts.delete(thing.id!);
+        buf.deletes.set(thing.id!, thing);
+      }
+      // Reset timer
+      if (buf.timer) clearTimeout(buf.timer);
       const upsertsArr = Array.from(buf.upserts.values());
       const deletesArr = Array.from(buf.deletes.values());
       buf.upserts.clear();
       buf.deletes.clear();
       buf.timer = null;
       await postObjects({ upserts: upsertsArr, deletes: deletesArr });
-    }, delay);
-  };
+    },
+    []
+  );
 
-  const scheduleCodeSave = (id: string, thing: Thing, delay = 600) => {
+  const scheduleCodeSave = (id: string, thing: Thing) => {
     const timers = saveTimersRef.current;
     if (timers.has(id)) {
       clearTimeout(timers.get(id));
     }
     const handle = setTimeout(() => {
-      schedulePersist({ things: [thing], delay });
-    }, delay);
+      schedulePersist({ things: [thing] });
+    }, 600);
     timers.set(id, handle);
   };
 
@@ -98,7 +115,7 @@ export function Canvas() {
       clearTimeout(timers.get(id));
       timers.delete(id);
     }
-    scheduleCodeSave(id, thing, 0);
+    scheduleCodeSave(id, thing);
   };
   const postObjects = async ({
     upserts = [] as Thing[],
@@ -159,6 +176,7 @@ export function Canvas() {
     if (!selected) return;
     setThings((prev) => prev.filter((p) => p.id !== selected.id));
     setSelected(null);
+    currentCode.current = "";
     // Ably publish immediately; persist later
     publishUpdate({ deletes: [selected.id!] });
     schedulePersist({ deletes: [selected!] });
@@ -217,7 +235,6 @@ export function Canvas() {
       (id, index) => id && scheduleCodeSave(id, updatedThings[index])
     );
   };
-  const target = things.find((t) => t.id === selected?.id);
 
   // Build a Thing from global code + personal state overlay
   const buildFromGlobal = (g: Partial<Thing>): Thing => {
@@ -464,7 +481,9 @@ export function Canvas() {
         const name = ea?.name?.name || "";
         const m = name.match(/intervalwith(\d+)ms/);
         if (!m) continue;
-        const ms = Number(m[1]);
+        // Clamp to ~60fps minimum for smooth animation
+        const MIN_INTERVAL_MS = 16;
+        const ms = Math.max(MIN_INTERVAL_MS, Number(m[1]));
         if (!Number.isFinite(ms) || ms <= 0) continue;
         tasks.push({ ms, thingId: t.id!, ea });
       }
@@ -538,11 +557,10 @@ export function Canvas() {
         return updated;
       });
 
-      // Update state and persist/broadcast
+      // Update state and persist (do not publish over WS for onInterval)
       setThings(nextThings);
       if (updatedList.length) {
-        publishUpdate({ upserts: updatedList });
-        schedulePersist({ things: updatedList });
+        debounce(() => schedulePersist({ things: updatedList }), 2);
       }
     };
 
@@ -621,7 +639,10 @@ export function Canvas() {
               selected={selected}
               setThings={setThings}
               thing={thing}
-              setSelected={setSelected}
+              setSelected={() => {
+                currentCode.current = thing.code || "";
+                setSelected(thing);
+              }}
               editing={editing}
               scrollLeft={scrollPos.left}
               scrollTop={scrollPos.top}
@@ -630,10 +651,6 @@ export function Canvas() {
                 if (ids.length) schedulePersist({ things: updatedList });
               }}
               onGeometryChange={(id, updatedThing) => {
-                publishUpdate({ upserts: [updatedThing] });
-                schedulePersist({ things: [updatedThing] });
-              }}
-              onGeometryCommit={(id, updatedThing) => {
                 publishUpdate({ upserts: [updatedThing] });
                 schedulePersist({ things: [updatedThing] });
               }}
@@ -685,13 +702,14 @@ export function Canvas() {
             <>
               <TextareaAutosize
                 className="border bg-white w-full border-gray-300 rounded font-mono p-2"
-                onChange={(e) =>
-                  handleChangeCode([e.target.value], [selected.id])
-                }
+                onChange={(e) => {
+                  currentCode.current = e.target.value;
+                  handleChangeCode([e.target.value], [selected.id]);
+                }}
                 onBlur={() =>
                   selected?.id && flushCodeSave(selected.id, selected)
                 }
-                value={target?.code}
+                value={currentCode.current}
                 minRows={10}
                 maxRows={10}
               />
@@ -721,6 +739,7 @@ export function Canvas() {
           <ThingList
             setSelected={(t) => {
               setSelected(t);
+              currentCode.current = t.code || "";
               centerOnThing(t);
             }}
             selected={selected}
