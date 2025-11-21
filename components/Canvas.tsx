@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getAblyClient } from "@/lib/ably/client";
-import { Thing } from "@/lib/objax";
+import { getField, getValue, Thing } from "@/lib/objax";
 import { FiMenu } from "react-icons/fi";
 import { useSession } from "next-auth/react";
 import { useTransitionIndex } from "./hooks/useTransitionIndex";
@@ -263,8 +263,12 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
   } => {
     const cur = latestThingsRef.current;
     const self = cur.find((tt) => tt.id === t.id) ?? t;
-    const x = self.x ?? 0;
-    const y = self.y ?? 0;
+    const offsetXField = getField(cur, self.name, "offsetX");
+    const offsetYField = getField(cur, self.name, "offsetY");
+    const offsetX = offsetXField ? Number(getValue(cur, offsetXField.value)) : 0;
+    const offsetY = offsetYField ? Number(getValue(cur, offsetYField.value)) : 0;
+    const x = (self.x ?? 0) + (Number.isFinite(offsetX) ? offsetX : 0);
+    const y = (self.y ?? 0) + (Number.isFinite(offsetY) ? offsetY : 0);
     if (!self.sticky) return { x, y };
     if (seen.has(self.name)) return { x, y };
     seen.add(self.name);

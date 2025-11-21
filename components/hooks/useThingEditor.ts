@@ -142,8 +142,12 @@ export function useThingEditor({
           try {
             result = getThing(code);
             setParseError(null);
-          } catch (e) {
-            setParseError(String(e));
+          } catch (e: any) {
+            setParseError(
+              `Error at ${e.location.start.line}:${e.location.start.column}` +
+                "\n" +
+                e.message
+            );
           }
           if (!result) {
             return { ...p, code };

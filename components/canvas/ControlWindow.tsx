@@ -165,9 +165,9 @@ export function ControlWindow({
               maxRows={10}
             />
             {parseError && (
-              <div className="border border-red-400 bg-red-50 rounded p-2 mt-1 mb-2">
+              <pre className="border border-red-400 bg-red-50 rounded p-2 mt-1 mb-2 break-all text-wrap">
                 {parseError}
-              </div>
+              </pre>
             )}
             <div className="gap-2 mb-2 flex items-center">
               <button

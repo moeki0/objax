@@ -238,16 +238,22 @@ export function ThingComponent({
   ): { x: number; y: number } => {
     t.x ||= 0;
     t.y ||= 0;
-    if (seen.has(t.name)) return { x: t.x, y: t.y };
+    const offsetXField = getField(things, t.name, "offsetX");
+    const offsetYField = getField(things, t.name, "offsetY");
+    const offsetX = offsetXField ? Number(getValue(things, offsetXField.value)) : 0;
+    const offsetY = offsetYField ? Number(getValue(things, offsetYField.value)) : 0;
+    const baseX = t.x + (Number.isFinite(offsetX) ? offsetX : 0);
+    const baseY = t.y + (Number.isFinite(offsetY) ? offsetY : 0);
+    if (seen.has(t.name)) return { x: baseX, y: baseY };
     seen.add(t.name);
     if (t.sticky) {
       const parent = things.find((tt) => tt.name === t.sticky);
       if (parent) {
         const pAbs = getAbsolutePos(parent, seen);
-        return { x: pAbs.x + t.x, y: pAbs.y + t.y };
+        return { x: pAbs.x + baseX, y: pAbs.y + baseY };
       }
     }
-    return { x: t.x, y: t.y };
+    return { x: baseX, y: baseY };
   };
 
   const handleClick = useTouchActions({
