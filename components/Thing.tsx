@@ -44,6 +44,7 @@ export function ThingComponent({
     width: thing.width ?? 200,
     height: thing.height ?? 200,
   });
+
   const [clickedPos, setClickedPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -55,6 +56,19 @@ export function ThingComponent({
     keyFromEventAction,
     pruneKeys: pruneTransitionKeys,
   } = useTransitionIndex();
+  const handleEventAction = useTouchActions({
+    thing,
+    things,
+    editing,
+    onActionUpdate,
+    setThings,
+    getNextTransitionValue,
+    keyFromEventAction,
+    pruneTransitionKeys,
+  });
+  const handleEventActionRef =
+    useRef<(name: string) => void>(handleEventAction);
+  handleEventActionRef.current = handleEventAction;
   const handleMouseDown = (e: ReactMouseEvent<HTMLDivElement, MouseEvent>) => {
     const movableField = getField(things, thing.name, "movable");
     const movable = movableField ? getValue(things, movableField.value) : false;
@@ -232,6 +246,17 @@ export function ThingComponent({
     return isDisplayed(thing);
   }, [thing, things, editing, selected]);
 
+  useEffect(() => {
+    handleEventActionRef.current?.("load");
+    // run once on mount
+  }, []);
+
+  useEffect(() => {
+    if (isDisplayed) {
+      handleEventActionRef.current?.("show");
+    }
+  }, [isDisplayed]);
+
   const getAbsolutePos = (
     t: Thing,
     seen = new Set<string>()
@@ -240,8 +265,12 @@ export function ThingComponent({
     t.y ||= 0;
     const offsetXField = getField(things, t.name, "offsetX");
     const offsetYField = getField(things, t.name, "offsetY");
-    const offsetX = offsetXField ? Number(getValue(things, offsetXField.value)) : 0;
-    const offsetY = offsetYField ? Number(getValue(things, offsetYField.value)) : 0;
+    const offsetX = offsetXField
+      ? Number(getValue(things, offsetXField.value))
+      : 0;
+    const offsetY = offsetYField
+      ? Number(getValue(things, offsetYField.value))
+      : 0;
     const baseX = t.x + (Number.isFinite(offsetX) ? offsetX : 0);
     const baseY = t.y + (Number.isFinite(offsetY) ? offsetY : 0);
     if (seen.has(t.name)) return { x: baseX, y: baseY };
@@ -255,17 +284,6 @@ export function ThingComponent({
     }
     return { x: baseX, y: baseY };
   };
-
-  const handleClick = useTouchActions({
-    thing,
-    things,
-    editing,
-    onActionUpdate,
-    setThings,
-    getNextTransitionValue,
-    keyFromEventAction,
-    pruneTransitionKeys,
-  });
   const text = useMemo(() => {
     const t = thing.fields?.find((f) => f.name.name === "text");
     if (!t) {
@@ -313,12 +331,22 @@ export function ThingComponent({
           editing
             ? "cursor-move"
             : thing.eventActions?.find(
-                (ea: EventActionType) => ea.name?.name === "touch"
+                (ea: EventActionType) =>
+                  ea.name?.name === "click" || ea.name?.name === "touch"
               )
             ? "cursor-pointer"
             : ""
         }`}
-        onClick={handleClick}
+        onClick={() => handleEventAction("click")}
+        onDoubleClick={() => handleEventAction("dblclick")}
+        onMouseEnter={() => handleEventAction("mouseenter")}
+        onMouseLeave={() => handleEventAction("mouseleave")}
+        onMouseOver={() => handleEventAction("mouseover")}
+        onMouseOut={() => handleEventAction("mouseout")}
+        onMouseDown={() => handleEventAction("mousedown")}
+        onMouseUp={() => handleEventAction("mouseup")}
+        onMouseMove={() => handleEventAction("mousemove")}
+        onContextMenu={() => handleEventAction("contextmenu")}
       >
         <div className="flex justify-center flex-col gap-2 items-center h-full w-full p-1">
           {isEditable ? (
