@@ -168,7 +168,7 @@ export function Canvas() {
       debounce(
         async () =>
           await postObjects({ upserts: upsertsArr, deletes: deletesArr }),
-        2
+        0.3
       );
     },
     [session]

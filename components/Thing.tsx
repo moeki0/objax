@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   EventActionType,
   getValue,
@@ -345,6 +347,10 @@ export function ThingComponent({
     [things, thing]
   );
   const image = getField(things, thing.name, "image");
+  const editableField = getField(things, thing.name, "editable");
+  const isEditable = editableField
+    ? !!getValue(things, editableField.value)
+    : false;
 
   return (
     <div
@@ -381,7 +387,56 @@ export function ThingComponent({
         onClick={handleClick}
       >
         <div className="flex justify-center flex-col gap-2 items-center h-full w-full p-1">
-          <pre className="font-sans">{String(text)}</pre>
+          {isEditable ? (
+            <div
+              className="w-full h-full flex"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <textarea
+                className="w-full h-full border border-gray-300 rounded p-2 text-sm bg-white/90"
+                value={String(text)}
+                onChange={(e) => {
+                  const hasText = (thing.fields || []).some(
+                    (f) => f.name.name === "text"
+                  );
+                  const nextFields = hasText
+                    ? (thing.fields || []).map((f) =>
+                        f.name.name === "text"
+                          ? {
+                              ...f,
+                              value: {
+                                type: "String",
+                                value: e.target.value,
+                              } as any,
+                            }
+                          : f
+                      )
+                    : [
+                        ...(thing.fields || []),
+                        {
+                          type: "Field",
+                          name: { type: "Name", name: "text" } as any,
+                          value: {
+                            type: "String",
+                            value: e.target.value,
+                          } as any,
+                        } as any,
+                      ];
+                  const updated: Thing = { ...thing, fields: nextFields };
+                  setThings((prev) =>
+                    prev.map((p) => (p.id === thing.id ? updated : p))
+                  );
+                  // Notify parent so it can publish/persist
+                  try {
+                    onActionUpdate && onActionUpdate([thing.id!], [updated]);
+                  } catch {}
+                }}
+              />
+            </div>
+          ) : (
+            <pre className="font-sans">{String(text)}</pre>
+          )}
           {image && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
