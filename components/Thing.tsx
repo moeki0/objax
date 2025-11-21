@@ -5,10 +5,14 @@ import {
   getValue,
   getField,
   getTransition,
+  getOperation,
   Thing,
   FieldType,
   ValueType,
   TransitionType,
+  Name,
+  OperationType,
+  BinaryOp,
 } from "@/lib/objax";
 import {
   CSSProperties,
@@ -251,6 +255,35 @@ export function ThingComponent({
     }
     return { x: t.x, y: t.y };
   };
+  const substituteIt = (expr: ValueType, replacement: ValueType): ValueType => {
+    if (!expr || typeof expr !== "object") return expr;
+    if ((expr as any).type === "It") return replacement;
+    if ((expr as any).type === "Array") {
+      return {
+        ...(expr as any),
+        values: ((expr as any).values || []).map((v: any) =>
+          substituteIt(v, replacement)
+        ),
+      } as any;
+    }
+    if ((expr as any).type === "BinaryOp") {
+      return {
+        ...(expr as any),
+        left: substituteIt((expr as any).left, replacement),
+        right: substituteIt((expr as any).right, replacement),
+      } as any;
+    }
+    if ((expr as any).type === "Eq") {
+      return {
+        ...(expr as any),
+        left: substituteIt((expr as any).left as any, replacement) as any,
+        right: substituteIt((expr as any).right as any, replacement) as any,
+      } as any;
+    }
+    // Other nodes: return shallow copy for immutability
+    return { ...(expr as any) } as any;
+  };
+
   const handleClick = () => {
     const devOnlyField = getField(things, thing.name, "devOnly");
     const devOnly = devOnlyField ? getValue(things, devOnlyField.value) : false;
@@ -260,53 +293,91 @@ export function ThingComponent({
     const eas = thing.eventActions?.filter((ea) => ea.name.name === "touch");
     const results: {
       ea: EventActionType;
-      transition: TransitionType;
+      transition: TransitionType | null;
       value: ValueType;
       field: FieldType;
+      fieldThingName: string;
+      operation: OperationType | null;
     }[] = [];
     eas?.forEach((ea) => {
       const transition = getTransition(
         things,
-        ea.transition.path[0].name,
-        ea.transition.path[1].name
+        (ea.transition.path[0] as Name).name,
+        (ea.transition.path[1] as Name).name
       );
-      if (!transition) {
+      if (transition) {
+        const field = getField(
+          things,
+          (transition.field.path[0] as Name).name,
+          (transition.field.path[1] as Name).name
+        );
+        if (!field) {
+          return;
+        }
+        const index = transition?.states?.findIndex((i) => {
+          return getValue(things, i) === getValue(things, field.value);
+        });
+        if (index === undefined) {
+          return;
+        }
+        const nextIndex =
+          index === -1
+            ? 0
+            : index < transition!.states.length - 1
+            ? index + 1
+            : 0;
+        const value = transition?.states[nextIndex];
+        results.push({
+          ea,
+          value,
+          field,
+          transition,
+          operation: null,
+          fieldThingName: (transition.field.path[0] as Name).name,
+        });
         return;
       }
-      const field = getField(
+      // Try operation if transition not found
+      const op = getOperation(
         things,
-        transition.field.path[0].name,
-        transition.field.path[1].name
+        (ea.transition.path[0] as Name).name,
+        (ea.transition.path[1] as Name).name
       );
-      if (!field) {
-        return;
-      }
-      const index = transition?.states.findIndex((i) => {
-        return getValue(things, i) === getValue(things, field.value);
+      if (!op) return;
+      if (!op.block) return;
+      const opField = getField(
+        things,
+        (op.field.path[0] as Name).name,
+        (op.field.path[1] as Name).name
+      );
+      if (!opField) return;
+      getValue(things, (op.block.expr as BinaryOp).right, op.field);
+      const nextExpr = getValue(things, op.block.expr, op.field);
+      results.push({
+        ea,
+        value: nextExpr,
+        field: opField,
+        operation: op,
+        transition: null,
+        fieldThingName: (op.field.path[0] as Name).name,
       });
-      if (index === undefined) {
-        return;
-      }
-      const nextIndex =
-        index === -1
-          ? 0
-          : index < transition!.states.length - 1
-          ? index + 1
-          : 0;
-      const value = transition?.states[nextIndex];
-      results.push({ ea, value, field, transition });
     });
 
     const updatedList: Thing[] = [];
     const newThings = things.map((p) => {
-      const target = results.find(
-        (r) => p.name === r.transition.field.path[0].name
-      );
+      const target = results.find((r) => p.name === r.fieldThingName);
       if (target) {
         const updated = {
           ...p,
           fields: p.fields?.map((f) => {
-            if (f.name.name === target.transition.field.path[1].name) {
+            if (
+              f.name.name === (target.transition?.field.path[1] as Name)?.name
+            ) {
+              return { ...f, value: target.value };
+            }
+            if (
+              f.name.name === (target.operation?.field.path[1] as Name)?.name
+            ) {
               return { ...f, value: target.value };
             }
             return f;
@@ -321,9 +392,7 @@ export function ThingComponent({
     // Notify parent which things were changed (by name -> ids)
     if (onActionUpdate) {
       try {
-        const changedNames = results.map(
-          (r) => r.transition.field.path[0].name
-        );
+        const changedNames = results.map((r) => r.fieldThingName);
         const changedIds = things
           .filter((p) => changedNames.includes(p.name))
           .map((p) => p.id!)

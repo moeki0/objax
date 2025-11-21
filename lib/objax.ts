@@ -18,7 +18,7 @@ export interface BooleanType {
 
 export interface FieldValueType {
   type: "Reference";
-  path: Name[];
+  path: (Name | IntegerType)[];
 }
 
 export interface EqType {
@@ -87,7 +87,23 @@ export interface IntegerType {
 
 export interface ArrayType {
   type: "Array";
-  values: ValueType[];
+  value: ValueType[];
+}
+
+export interface ItType {
+  type: "It";
+}
+
+export interface OperationType {
+  type: "Operation";
+  name: Name;
+  field: FieldValueType;
+  block: BlockType;
+}
+
+export interface BlockType {
+  type: "Block";
+  expr: ValueType;
 }
 
 export type ValueType =
@@ -100,7 +116,8 @@ export type ValueType =
   | EqType
   | OrType
   | AndType
-  | NotType;
+  | NotType
+  | ItType;
 
 export interface Thing {
   id?: string;
@@ -114,9 +131,15 @@ export interface Thing {
   sticky?: string;
   eventActions?: EventActionType[];
   transitions?: TransitionType[];
+  operations?: OperationType[];
   fields?: FieldType[];
   duplicate?: Duplicate;
-  users?: { name?: string | null; email?: string | null; image?: string | null; id?: string | null }[];
+  users?: {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+    id?: string | null;
+  }[];
 }
 
 export function getField(
@@ -131,33 +154,49 @@ export function getField(
 
 export function getValue(
   things: Thing[],
-  t: ValueType | EqType
+  t: ValueType | EqType,
+  it?: FieldValueType
 ): any {
-  if (t.type === "Eq") {
-    return getValue(things, t.left) === getValue(things, t.right);
+  if (!t) {
+    return;
+  }
+  if (!t.type) {
+    return t;
+  }
+  if (t.type === "String") {
+    return t.value;
+  } else if (t.type === "Eq") {
+    return getValue(things, t.left, it) === getValue(things, t.right, it);
+  } else if (t.type === "It") {
+    return getValue(
+      things,
+      getField(things, (it!.path[0] as any).name, (it!.path[1] as any).name)!
+        .value,
+      it
+    );
   } else if (t.type === "Or") {
-    const l = getValue(things, t.left);
-    const r = getValue(things, t.right);
+    const l = getValue(things, t.left, it);
+    const r = getValue(things, t.right, it);
     return Boolean(l) || Boolean(r);
   } else if (t.type === "And") {
-    const l = getValue(things, t.left);
-    const r = getValue(things, t.right);
+    const l = getValue(things, t.left, it);
+    const r = getValue(things, t.right, it);
     return Boolean(l) && Boolean(r);
   } else if (t.type === "Not") {
-    const v = getValue(things, t.operand);
+    const v = getValue(things, t.operand, it);
     return !Boolean(v);
   } else if (t.type === "BinaryOp") {
-    const leftVal = getValue(things, t.left);
-    const rightVal = getValue(things, t.right);
+    const leftVal = getValue(things, t.left, it);
+    const rightVal = getValue(things, t.right, it);
     if (t.op === "_") {
       const lIsArr = Array.isArray(leftVal);
       const rIsArr = Array.isArray(rightVal);
       if (lIsArr && rIsArr) {
-        return [...(leftVal as any[]), ...(rightVal as any[])];
+        return [...leftVal, ...rightVal];
       } else if (lIsArr) {
-        return [...(leftVal as any[]), rightVal];
+        return [...leftVal, rightVal];
       } else if (rIsArr) {
-        return [leftVal, ...(rightVal as any[])];
+        return [leftVal, ...rightVal];
       }
       return String(leftVal ?? "") + String(rightVal ?? "");
     }
@@ -174,8 +213,8 @@ export function getValue(
     }
   } else if (t.type === "Reference") {
     // Built-in Time namespace support
-    const ns = t.path[0]?.name;
-    const key = t.path[1]?.name;
+    const ns = (t.path[0] as Name | undefined)?.name;
+    const key = (t.path[1] as Name | undefined)?.name;
     if (ns === "Time" && key) {
       const now = new Date();
       switch (key) {
@@ -210,14 +249,39 @@ export function getValue(
           break;
       }
     }
-    const field = getField(things, t.path[0].name, t.path[1]?.name);
-    if (!field) {
+    // Resolve base field value (first two segments must be Names)
+    const head = t.path[0] as Name | undefined;
+    const second = t.path[1] as Name | IntegerType | undefined;
+    if (!head || !second || (second as any).type !== "Name") {
       return undefined;
     }
-    return getValue(things, field.value);
+    const field = getField(things, head.name, (second as Name).name);
+    if (!field) {
+      return "";
+    }
+    // Evaluate field's value
+    let cur: any = getValue(things, field.value, it);
+    // Apply any further path segments (array indexing, 1-based)
+    if (t.path.length > 2) {
+      for (let i = 2; i < t.path.length; i++) {
+        const seg: any = t.path[i];
+        if (!Number.isNaN(seg.name)) {
+          const idx = Number(seg.name);
+          if (Array.isArray(cur)) {
+            cur = cur[idx - 1] || "";
+          } else {
+            return "";
+          }
+        } else {
+          // Unsupported segment type after field; stop
+          return "";
+        }
+      }
+    }
+    return cur;
   } else {
     if ((t as any).type === "Array") {
-      const arr = (t as ArrayType).values.map((v) => getValue(things, v));
+      const arr = (t as ArrayType).value?.map((v) => getValue(things, v, it));
       return arr;
     }
     return (t as any).value;
@@ -236,6 +300,16 @@ export function getTransition(
     });
 }
 
+export function getOperation(
+  things: Thing[],
+  thing: string,
+  op: string
+): OperationType | undefined {
+  return things
+    ?.find((t) => t.name === thing)
+    ?.operations?.find((o) => o.name.name === op);
+}
+
 export function getThing(code: string): Thing {
   const result = parse(code);
   function find(type: string) {
@@ -249,6 +323,7 @@ export function getThing(code: string): Thing {
     fields: filter("DefField"),
     transitions: filter("Transition"),
     eventActions: filter("EventAction"),
+    operations: filter("Operation"),
     sticky: find("Sticky")?.name.name,
     duplicate: find("Duplicate"),
   };

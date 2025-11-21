@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { ThingComponent } from "./Thing";
-import { getThing, getValue, Thing } from "@/lib/objax";
+import { getThing, getValue, Name, Thing } from "@/lib/objax";
 import TextareaAutosize from "react-textarea-autosize";
 import { ThingList } from "./ThingList";
 import { FiMenu } from "react-icons/fi";
@@ -261,12 +261,15 @@ export function Canvas() {
         const image = result.fields?.find((f) => f.name.name === "image");
         return {
           ...p,
+          x: resetPos(result, p).x,
+          y: resetPos(result, p).y,
           code,
           name: result.name,
           sticky: result.sticky,
           fields: result.fields,
           transitions: result.transitions,
           eventActions: result.eventActions,
+          operations: (result as any).operations,
           image,
         };
       }
@@ -303,6 +306,7 @@ export function Canvas() {
       sticky: parsed.sticky,
       eventActions: parsed.eventActions,
       transitions: parsed.transitions,
+      operations: (parsed as any).operations,
       fields: parsed.fields,
       width: (g as any)?.width ?? 200,
       height: (g as any)?.height ?? 200,
@@ -559,15 +563,15 @@ export function Canvas() {
 
       for (const { ea } of batch) {
         // Reuse the same logic as click handler: find transition, target field, and next state
-        const trThing = ea.transition.path[0]?.name;
-        const trName = ea.transition.path[1]?.name;
+        const trThing = (ea.transition.path[0] as Name)?.name;
+        const trName = (ea.transition.path[1] as Name)?.name;
         if (!trThing || !trName) continue;
         const transition = cur
           .find((tt) => tt.name === trThing)
           ?.transitions?.find((tr) => tr.name.name === trName);
         if (!transition) continue;
-        const fieldThing = transition.field.path[0]?.name;
-        const fieldName = transition.field.path[1]?.name;
+        const fieldThing = (transition.field.path[0] as Name)?.name;
+        const fieldName = (transition.field.path[1] as Name)?.name;
         if (!fieldThing || !fieldName) continue;
         const field = cur
           .find((tt) => tt.name === fieldThing)
@@ -636,6 +640,32 @@ export function Canvas() {
     if (!parent) return { x, y };
     const p = getAbsolutePos(parent, seen);
     return { x: p.x + x, y: p.y + y };
+  };
+
+  const resetPos = (
+    t: Thing,
+    prev: Thing,
+    seen = new Set<string>()
+  ): {
+    x: number;
+    y: number;
+  } => {
+    if (t.sticky === prev.sticky) return { x: prev.x!, y: prev.y! };
+    const x = prev.x!;
+    const y = prev.y!;
+    const parent = things.find((tt) => tt.name === prev.sticky);
+    const currentParent = things.find((tt) => tt.name === t.sticky);
+    if (!currentParent && !parent) return { x, y };
+    if (!currentParent && parent) {
+      if (seen.has(t.name)) return { x, y };
+      seen.add(t.name);
+      const p = resetPos(parent, parent, seen);
+      return { x: p.x + x, y: p.y + x };
+    }
+    if (seen.has(t.name)) return { x, y };
+    seen.add(t.name);
+    if (!currentParent) return { x, y };
+    return { x: 0, y: 0 };
   };
 
   const centerOnThing = (t: Thing) => {
