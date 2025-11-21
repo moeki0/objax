@@ -145,11 +145,12 @@ test('Transition with states array', () => {
   ]);
 });
 
-test('Eq expression (as Value in DefField)', () => {
-  const [stmt] = parse('cond = foo.bar eq 10');
+test('Compare expression (as Value in DefField)', () => {
+  const [stmt] = parse('cond = foo.bar == 10');
   assert.equal(stmt.type, 'DefField');
   assert.deepEqual(stmt.value, {
-    type: 'Eq',
+    type: 'Compare',
+    op: '==',
     left: {
       type: 'Reference',
       path: [ { type: 'Name', name: 'foo' }, { type: 'Name', name: 'bar' } ],

@@ -15,13 +15,16 @@ import TextareaAutosize from "react-textarea-autosize";
 import { ThingList } from "./ThingList";
 import { FiMenu } from "react-icons/fi";
 import { getAblyClient } from "@/lib/ably/client";
+import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 
-export function Canvas() {
+export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
+  const router = useRouter();
   const { data: session } = useSession();
   const [parseError, setParseError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Thing | null>(null);
   const [things, setThings] = useState<Thing[]>([]);
+  const [worldId, setWorldId] = useState<string | null>(null);
   const latestThingsRef = useRef<Thing[]>(things);
   latestThingsRef.current = things;
   const lastSavedSnapshotRef = useRef<Map<string, string>>(new Map());
@@ -36,6 +39,8 @@ export function Canvas() {
     deletes: Map<string, Thing>;
     timer: any | null;
   }>({ upserts: new Map(), deletes: new Map(), timer: null });
+  const worldIdRef = useRef<string | null>(null);
+  worldIdRef.current = worldId;
   const currentCode = useRef("");
 
   const getConnId = () => {
@@ -51,9 +56,12 @@ export function Canvas() {
     upserts = [] as Thing[],
     deletes = [] as string[],
   } = {}) => {
+    if (!worldIdRef.current) return; // wait until world resolved
     try {
       const client = getAblyClient();
-      const ch = client.channels.get("things");
+      const ch = client.channels.get(
+        `things:${worldIdRef.current || "default"}`
+      );
       await ch.publish("update", {
         upserts,
         deletes,
@@ -116,13 +124,17 @@ export function Canvas() {
           })
         : upserts;
 
-      const res = await fetch("/api/objects", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ upserts: upsertsWithUser, deletes }),
-      });
+      const wid = worldIdRef.current || "default";
+      const res = await fetch(
+        `/api/objects?worldId=${encodeURIComponent(wid)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ upserts: upsertsWithUser, deletes }),
+        }
+      );
 
       if (res.ok) {
         // Update local snapshot cache to avoid redundant interval writes
@@ -147,18 +159,27 @@ export function Canvas() {
   const schedulePersist = useCallback(
     async ({ things = [] as Thing[], deletes = [] as Thing[] } = {}) => {
       const buf = persistBufferRef.current;
-      // Merge upserts
+      // Merge into buffer first
       for (const thing of things) {
+        if (!thing) continue;
         buf.deletes.delete(thing.id!);
         buf.upserts.set(thing.id!, thing);
       }
-      // Merge deletes
       for (const thing of deletes) {
         if (!thing) continue;
         buf.upserts.delete(thing.id!);
         buf.deletes.set(thing.id!, thing);
       }
-      // Reset timer and immediately flush (no extra delay in this buffer)
+
+      // If worldId not resolved yet, retry shortly without clearing buffer
+      const wid = worldIdRef.current;
+      if (!wid) {
+        if (buf.timer) clearTimeout(buf.timer);
+        buf.timer = setTimeout(() => schedulePersist({}), 200);
+        return;
+      }
+
+      // Flush buffered changes
       if (buf.timer) clearTimeout(buf.timer);
       const upsertsArr = Array.from(buf.upserts.values());
       const deletesArr = Array.from(buf.deletes.values());
@@ -194,11 +215,13 @@ export function Canvas() {
     scheduleCodeSave(id, thing);
   };
   const handleAdd = () => {
+    if ((things?.length || 0) >= 1000) return; // client-side cap per world
     const left = scrollRef.current?.scrollLeft ?? 0;
     const top = scrollRef.current?.scrollTop ?? 0;
     const id = Math.random().toString(32).substring(2);
     const newThing = {
       id,
+      worldId: worldId || undefined,
       name: "",
       x: left,
       text: { type: "Text" as const, value: { type: "String", value: "" } },
@@ -319,7 +342,12 @@ export function Canvas() {
   // Load globals and merge with personal state
   const reloadFromGlobal = async () => {
     try {
-      const res = await fetch("/api/objects?limit=500", { cache: "no-store" });
+      const res = await fetch(
+        `/api/objects?worldId=${encodeURIComponent(
+          worldId || "default"
+        )}&limit=1000`,
+        { cache: "no-store" }
+      );
       if (!res.ok) return;
       const data = await res.json();
       const incoming = data.things ?? [];
@@ -340,18 +368,36 @@ export function Canvas() {
     } catch {}
   };
 
-  // Initial load: merge global with personal
+  // Resolve world by URL when provided
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
-      if (cancelled) return;
-      await reloadFromGlobal();
+    const loadFromUrl = async () => {
+      if (!initialWorldUrl) return;
+      try {
+        const r = await fetch(
+          `/api/worlds/${encodeURIComponent(initialWorldUrl)}`,
+          { cache: "no-store" }
+        );
+        if (!r.ok) return;
+        const dj = await r.json();
+        const w = dj?.world;
+        if (!cancelled) {
+          if (w?.id) setWorldId(w.id);
+          else router.push("/worlds");
+        }
+      } catch {}
     };
-    load();
+    loadFromUrl();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialWorldUrl]);
+
+  // Load things whenever world changes
+  useEffect(() => {
+    if (!worldId) return;
+    reloadFromGlobal();
+  }, [worldId]);
 
   // Center the viewport on the 100000x100000 canvas at mount
   useEffect(() => {
@@ -371,9 +417,10 @@ export function Canvas() {
 
   // Realtime updates via Ably: apply update payload without full reload
   useEffect(() => {
+    if (!worldId) return;
     try {
       const client = getAblyClient();
-      const ch = client.channels.get("things");
+      const ch = client.channels.get(`things:${worldId || "default"}`);
       const handler = (msg: any) => {
         const data = msg?.data || {};
         // Ignore our own updates to prevent transient flicker
@@ -441,16 +488,16 @@ export function Canvas() {
             // Detach before releasing to satisfy Ably requirements
             ch.detach().finally(() => {
               try {
-                client.channels.release("things");
+                client.channels.release(`things:${worldId || "default"}`);
               } catch {}
             });
           } else {
-            client.channels.release("things");
+            client.channels.release(`things:${worldId || "default"}`);
           }
         } catch {}
       };
     } catch {}
-  }, []);
+  }, [worldId]);
 
   const [windowPos, setWindowPos] = useState({ x: 10, y: 10 });
   const [windowSize, setWindowSize] = useState({ width: 400, height: 300 });
@@ -510,8 +557,61 @@ export function Canvas() {
 
   const bgRef = useRef<HTMLDivElement>(null);
   const [isWindowOpen, setIsWindowOpen] = useState(false);
+  const [isListOpen, setIsListOpen] = useState(true);
   const [isSyntaxOpen, setIsSyntaxOpen] = useState(false);
+  // ThingList window state
+  const [listWindowPos, setListWindowPos] = useState({ x: 10, y: 10 });
+  const [listWindowSize, setListWindowSize] = useState({
+    width: 280,
+    height: 360,
+  });
+  const [isListDragging, setIsListDragging] = useState(false);
+  const [listClickedPos, setListClickedPos] = useState({ x: 0, y: 0 });
+  const [isListResizing, setIsListResizing] = useState(false);
+  const [listInitialSize, setListInitialSize] = useState({
+    width: 0,
+    height: 0,
+  });
+  const [listResizeStart, setListResizeStart] = useState({ x: 0, y: 0 });
   // no file import/export in global mode
+
+  // Helpers to update selected thing and persist
+  function upsertFieldOnThing(
+    t: Thing,
+    fieldName: string,
+    jsValue: any
+  ): Thing {
+    const name = { type: "Name" as const, name: fieldName };
+    const nextValue =
+      typeof jsValue === "boolean"
+        ? ({ type: "Boolean", value: jsValue } as any)
+        : typeof jsValue === "number"
+        ? ({ type: "Integer", value: jsValue } as any)
+        : ({ type: "String", value: String(jsValue ?? "") } as any);
+    const has = (t.fields || []).some((f: any) => f?.name?.name === fieldName);
+    const nextFields = has
+      ? (t.fields || []).map((f: any) =>
+          f?.name?.name === fieldName ? { ...f, value: nextValue } : f
+        )
+      : ([
+          ...(t.fields || []),
+          { type: "Field", name, value: nextValue },
+        ] as any);
+    return { ...t, fields: nextFields };
+  }
+
+  function updateThing(mutator: (t: Thing) => Thing) {
+    if (!selected?.id) return;
+    setThings((prev) => {
+      const next = prev.map((p) => (p.id === selected.id ? mutator(p) : p));
+      const updated = next.find((p) => p.id === selected.id);
+      if (updated) {
+        publishUpdate({ upserts: [updated] });
+        schedulePersist({ things: [updated] });
+      }
+      return next;
+    });
+  }
 
   // Interval-driven actions: onIntervalWith{N}ms is <Thing.Transition>
   useEffect(() => {
@@ -683,6 +783,7 @@ export function Canvas() {
 
   return (
     <div className="w-screen h-screen relative">
+      {/* World selection UI removed; use /worlds page instead */}
       <div
         ref={scrollRef}
         className="w-screen h-screen bg-white overflow-scroll"
@@ -774,6 +875,14 @@ export function Canvas() {
             >
               Backup
             </button>
+            <button
+              onClick={() => setIsSyntaxOpen(true)}
+              className="border bg-white px-4 py-1 rounded border-gray-300"
+              title="View syntax"
+              type="button"
+            >
+              Help
+            </button>
           </div>
           {selected && (
             <>
@@ -834,22 +943,6 @@ export function Canvas() {
         className="fixed bottom-6 right-6 cursor-pointer hover:bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center bg-gray-50 shadow-lg border border-gray-300"
       >
         <FiMenu />
-      </button>
-      <button
-        onClick={() => signOut({ callbackUrl: "/login" })}
-        className="fixed bottom-[136px] right-6 cursor-pointer hover:bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center bg-gray-50 shadow-lg border border-gray-300 text-sm"
-        title="Sign out"
-        type="button"
-      >
-        <GoSignOut />
-      </button>
-      <button
-        onClick={() => setIsSyntaxOpen(true)}
-        className="fixed bottom-20 right-6 cursor-pointer hover:bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center bg-gray-50 shadow-lg border border-gray-300 text-base"
-        title="View syntax"
-        type="button"
-      >
-        ?
       </button>
 
       {isSyntaxOpen && (

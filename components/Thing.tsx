@@ -277,7 +277,6 @@ export function ThingComponent({
         (ea.transition.path[0] as Name).name,
         (ea.transition.path[1] as Name).name
       );
-      console.log(transition)
       if (transition) {
         const field = getField(
           things,

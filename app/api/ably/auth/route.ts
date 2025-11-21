@@ -6,7 +6,8 @@ export async function GET() {
   try {
     const rest = getAblyRest();
     const tokenRequest = await rest.auth.createTokenRequest({
-      capability: { things: ["publish", "subscribe"] },
+      // Allow publish/subscribe on all world-scoped channels: things:<worldId>
+      capability: { "things:*": ["publish", "subscribe"] },
       ttl: 60 * 60 * 1000, // 1 hour
     } as any);
     return NextResponse.json(tokenRequest);

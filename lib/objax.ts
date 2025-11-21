@@ -21,9 +21,10 @@ export interface FieldValueType {
   path: (Name | IntegerType)[];
 }
 
-export interface EqType {
-  type: "Eq";
-  left: FieldValueType;
+export interface CompareType {
+  type: "Compare";
+  op: "==" | "!=" | "<" | "<=" | ">" | ">=";
+  left: ValueType;
   right: ValueType;
 }
 
@@ -113,7 +114,7 @@ export type ValueType =
   | BinaryOp
   | ArrayType
   | FieldValueType
-  | EqType
+  | CompareType
   | OrType
   | AndType
   | NotType
@@ -121,6 +122,7 @@ export type ValueType =
 
 export interface Thing {
   id?: string;
+  worldId?: string;
   x?: number;
   y?: number;
   width?: number;
@@ -154,23 +156,46 @@ export function getField(
 
 export function getValue(
   things: Thing[],
-  t: ValueType | EqType,
+  t: ValueType,
   it?: FieldValueType
 ): any {
-  if (!t) {
+  console.log(t);
+  if (t === undefined) {
     return;
   }
   if (!t.type) {
     return t;
   }
-  if (t.type === "String") {
+  if (t.type === "Integer") {
     return t.value;
-  } else if (t.type === "Eq") {
-    return getValue(things, t.left, it) === getValue(things, t.right, it);
+  } else if (t.type === "String") {
+    return t.value;
+  } else if (t.type === "Compare") {
+    const l = getValue(things, t.left, it);
+    const r = getValue(things, t.right, it);
+    switch (t.op) {
+      case "==":
+        return l === r;
+      case "!=":
+        return l !== r;
+      case "<":
+        return Number(l) < Number(r);
+      case "<=":
+        return Number(l) <= Number(r);
+      case ">":
+        return Number(l) > Number(r);
+      case ">=":
+        return Number(l) >= Number(r);
+      default:
+        return false;
+    }
   } else if (t.type === "It") {
+    if (!it) {
+      return undefined;
+    }
     return getValue(
       things,
-      getField(things, (it!.path[0] as any).name, (it!.path[1] as any).name)!
+      getField(things, (it.path[0] as any).name, (it!.path[1] as any).name)!
         .value,
       it
     );

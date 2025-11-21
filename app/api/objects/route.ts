@@ -5,12 +5,14 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { kv } from "@vercel/kv";
 import { Thing } from "@/lib/objax";
 
-const OBJECTS_ZSET = "objects:z";
-const objectKey = (id: string) => `objects:${id}`;
+const worldZSet = (worldId: string) => `world:${worldId}:z`;
+const objectKey = (worldId: string, id: string) => `world:${worldId}:object:${id}`;
+const DEFAULT_WORLD_ID = "default";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
+    const worldId = searchParams.get("worldId") || DEFAULT_WORLD_ID;
     const limit = Math.min(
       parseInt(searchParams.get("limit") || "200", 10),
       1000
@@ -18,11 +20,11 @@ export async function GET(req: Request) {
     const cursorStr = searchParams.get("cursor");
     const start = Math.max(0, parseInt(cursorStr || "0", 10) || 0);
     const end = start + limit - 1;
-    const ids = (await kv.zrange(OBJECTS_ZSET, start, end)) as string[];
+    const ids = (await kv.zrange(worldZSet(worldId), start, end)) as string[];
     const items = await Promise.all(
       ids.map(async (id) => {
         try {
-          const obj = await kv.get(objectKey(id));
+          const obj = await kv.get(objectKey(worldId, id));
           return obj as any;
         } catch {
           return null;
@@ -42,6 +44,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const worldId = searchParams.get("worldId") || DEFAULT_WORLD_ID;
     const session: { user: any } = (await getServerSession(
       authOptions as any
     ).catch(() => null)) as any;
@@ -64,7 +68,7 @@ export async function POST(req: Request) {
       upserts.map(async (obj) => {
         const id = (obj as any)?.id;
         if (!id || typeof id !== "string") return;
-        const key = objectKey(id);
+        const key = objectKey(worldId, id);
         // Load previous to compare code
         let prev: any = null;
         try {
@@ -108,24 +112,31 @@ export async function POST(req: Request) {
             });
           } catch {}
         }
-        await kv.set(key, toSave);
-        await kv.zadd(OBJECTS_ZSET, { score: Date.now(), member: id });
+        // Enforce per-world 1000 thing limit on create
+        if (!prev) {
+          const count = ((await kv.zcard(worldZSet(worldId))) as number) || 0;
+          if (count >= 1000) {
+            throw new Error("World limit reached (1000 things)");
+          }
+        }
+        await kv.set(key, { ...toSave, worldId });
+        await kv.zadd(worldZSet(worldId), { score: Date.now(), member: id });
       })
     );
 
     await Promise.all(
       deletes.map(async (object) => {
-        await kv.del(objectKey(object.id!));
-        await kv.zrem(OBJECTS_ZSET, object.id);
+        const id = object.id!;
+        await kv.del(objectKey(worldId, id));
+        await kv.zrem(worldZSet(worldId), id);
       })
     );
 
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error(e);
-    return NextResponse.json(
-      { error: "Failed to write objects" },
-      { status: 500 }
-    );
+    const msg = String(e || "");
+    const status = msg.includes("World limit") ? 400 : 500;
+    return NextResponse.json({ error: msg || "Failed to write objects" }, { status });
   }
 }

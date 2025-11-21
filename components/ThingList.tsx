@@ -22,7 +22,7 @@ export function ThingList({
   }, [fuse, query]);
 
   return (
-    <div className="mt-3">
+    <div className="">
       <div className="flex items-center gap-2 mb-2">
         <div className="text-xs text-gray-500">Things</div>
         <input

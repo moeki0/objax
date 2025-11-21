@@ -1,5 +1,5 @@
-import { Canvas } from "@/components/Canvas";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <Canvas />;
+  redirect("/worlds");
 }
