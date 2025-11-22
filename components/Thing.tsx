@@ -1,14 +1,15 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable @next/next/no-img-element */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Runtime } from "@/lib/objax/runtime";
 import { getField } from "@/lib/objax/runtime/get-field";
 import { Thing } from "@/lib/objax/type";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { EditorComponent } from "./Editor";
 import { getValue } from "@/lib/objax/runtime/get-value";
 import { load } from "@/lib/objax/runtime/load";
 import { rewriteFieldInCode } from "@/lib/objax/runtime/rewrite-field-in-code";
-import { useThingLayouts } from "./thing/layout";
+import { Layout, LayoutMaps, useThingLayouts } from "./thing/layout";
 import { useThingInteractions } from "./thing/interactions";
 
 export function ThingComponent({
@@ -16,13 +17,20 @@ export function ThingComponent({
   thing,
   runtime,
   onLiveUpdate,
+  layoutMaps,
+  scrollContainer,
+  worldOffset = 0,
 }: {
   things: Thing[];
   thing: Thing;
   runtime: Runtime;
   onLiveUpdate?: (payload: any) => void;
+  layoutMaps?: LayoutMaps;
+  scrollContainer?: HTMLDivElement | null;
+  worldOffset?: number;
 }) {
   const [editor, setEditor] = useState(false);
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
     const handleKeydown = (e: KeyboardEvent) => {
       runtime.handle({ thing, event: `keydown${e.key}` });
@@ -32,6 +40,9 @@ export function ThingComponent({
       document.removeEventListener("keydown", handleKeydown);
     };
   }, [runtime, thing]);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const fieldValue = useCallback(
     (target: Thing, name: string) => {
       return getValue(
@@ -47,13 +58,17 @@ export function ThingComponent({
   );
   const text = String(v("text") ?? "");
   const layouts = useThingLayouts({ things, fieldValue });
-  const layout = layouts.byId.get(thing.id) ?? {
-    x: Number(v("x") ?? 0),
-    y: Number(v("y") ?? 0),
-    width: Number(v("width") ?? 0),
-    height: Number(v("height") ?? 0),
-    depth: 0,
-  };
+  const layout = useMemo<Layout>(() => {
+    return (
+      layouts.byId.get(thing.id) ?? {
+        x: Number(v("x") ?? 0),
+        y: Number(v("y") ?? 0),
+        width: Number(v("width") ?? 0),
+        height: Number(v("height") ?? 0),
+        depth: 0,
+      }
+    );
+  }, [layouts, thing.id, v]);
   const parentLayout = layout.parentName
     ? layouts.byName.get(layout.parentName)
     : undefined;
@@ -73,6 +88,8 @@ export function ThingComponent({
     parentLayout,
     fieldValue,
     onLiveUpdate,
+    scrollContainer,
+    worldOffset,
   });
 
   const lowerFirst = (str: string) => {
@@ -97,13 +114,12 @@ export function ThingComponent({
 
   return (
     <>
-      {editor && (
         <EditorComponent
           key={thing.id}
           thing={things.find((t) => t.id === thing.id)!}
           runtime={runtime}
+          editor={editor}
         />
-      )}
       {isVisible && (
         <div
           onPointerDown={handlePointerDown}
@@ -117,9 +133,11 @@ export function ThingComponent({
           style={{
             height: `${v("height")}px`,
             width: `${v("width")}px`,
-            left: `${layout.x}px`,
-            top: `${layout.y}px`,
+            left: `${layout.x + worldOffset}px`,
+            top: `${layout.y + worldOffset}px`,
             zIndex: 100 + (layout.depth ?? 0),
+            opacity: mounted ? 1 : 0,
+            transition: "opacity 200ms ease-out",
             ...style(),
           }}
         >

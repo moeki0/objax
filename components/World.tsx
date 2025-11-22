@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ThingComponent } from "./Thing";
 import { useWorld } from "./hooks/useWorld";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -10,6 +10,14 @@ import { World } from "@/lib/objax/runtime/world";
 import { Footer } from "./Footer";
 import { getAblyClient } from "@/lib/ably/client";
 import { load } from "@/lib/objax/runtime/load";
+import { getField } from "@/lib/objax/runtime/get-field";
+import { getValue } from "@/lib/objax/runtime/get-value";
+import { useThingLayouts } from "./thing/layout";
+import { Thing } from "@/lib/objax/type";
+import { useVirtualizer } from "@tanstack/react-virtual";
+
+const WORLD_SIZE = 100000;
+const WORLD_OFFSET = WORLD_SIZE / 2;
 
 export function WorldComponent() {
   const [init, setInit] = useState<World | null>(null);
@@ -18,6 +26,7 @@ export function WorldComponent() {
   const lastSnapshotRef = useRef<Map<string, string>>(new Map());
   const liveBufferRef = useRef<Map<string, any>>(new Map());
   const liveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const runtime = useWorld({ init });
   useHotkeys("ctrl+n", () => runtime?.add({}));
   const publishRealtime = useCallback(
@@ -103,6 +112,8 @@ export function WorldComponent() {
       const data = await res.json();
       setInit({
         things: data.things,
+        width: WORLD_SIZE,
+        height: WORLD_SIZE,
       });
       const snap = new Map<string, string>();
       for (const t of data.things || []) {
@@ -116,6 +127,64 @@ export function WorldComponent() {
   const world = runtime?.world;
 
   useEffect(func, [world?.things, func]);
+
+  const fieldValue = useCallback(
+    (target: Thing, name: string) => {
+      return getValue(
+        world?.things ?? [],
+        getField(world?.things ?? [], target.name, name)?.value as any
+      );
+    },
+    [world?.things]
+  );
+
+  const layouts = useThingLayouts({
+    things: world?.things ?? [],
+    fieldValue,
+  });
+
+  const visibleIndices = useCallback(() => {
+    if (!world) return [];
+    const el = scrollRef.current;
+    if (!el) return world.things.map((_, i) => i);
+    const buffer = 800; // 少し余裕を持って先読み
+    const view = {
+      left: el.scrollLeft - WORLD_OFFSET - buffer,
+      right: el.scrollLeft - WORLD_OFFSET + el.clientWidth + buffer,
+      top: el.scrollTop - WORLD_OFFSET - buffer,
+      bottom: el.scrollTop - WORLD_OFFSET + el.clientHeight + buffer,
+    };
+    return world.things.reduce((acc: number[], thing, idx) => {
+      const layout = layouts.byId.get(thing.id);
+      if (!layout) {
+        acc.push(idx);
+        return acc;
+      }
+      const horizontal =
+        layout.x + layout.width >= view.left && layout.x <= view.right;
+      const vertical =
+        layout.y + layout.height >= view.top && layout.y <= view.bottom;
+      if (horizontal && vertical) acc.push(idx);
+      return acc;
+    }, []);
+  }, [world, layouts]);
+
+  const virtualizer = useVirtualizer({
+    count: world?.things.length ?? 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 120,
+    overscan: 10,
+    rangeExtractor: () => visibleIndices(),
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const visibleThings = useMemo(() => {
+    if (!world) return [];
+    return virtualItems.map((item) => world.things[item.index]).filter(Boolean);
+  }, [virtualItems, world]);
+
+  const worldWidth = world?.width ?? WORLD_SIZE;
+  const worldHeight = world?.height ?? WORLD_SIZE;
 
   useEffect(() => {
     if (!runtime) return;
@@ -192,21 +261,45 @@ export function WorldComponent() {
     };
   }, [runtime]);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !world) return;
+    const centerX = WORLD_OFFSET - el.clientWidth / 2;
+    const centerY = WORLD_OFFSET - el.clientHeight / 2;
+    el.scrollTo({ left: centerX, top: centerY, behavior: "auto" });
+  }, [world]);
+
   if (!world) {
     return;
   }
 
   return (
-    <div>
-      {world.things.map((thing) => (
-        <ThingComponent
-          key={thing.id}
-          thing={thing}
-          things={world.things}
-          runtime={runtime}
-          onLiveUpdate={sendLiveUpdate}
-        />
-      ))}
+    <div
+      ref={scrollRef}
+      className="scroller w-screen h-screen overflow-auto bg-white"
+    >
+      <div
+        className="relative"
+        style={{
+          width: worldWidth,
+          height: worldHeight,
+          minWidth: worldWidth,
+          minHeight: worldHeight,
+        }}
+      >
+        {visibleThings.map((thing) => (
+          <ThingComponent
+            key={thing.id}
+            thing={thing}
+            things={world.things}
+            runtime={runtime}
+            onLiveUpdate={sendLiveUpdate}
+            layoutMaps={layouts}
+            scrollContainer={scrollRef.current}
+            worldOffset={WORLD_OFFSET}
+          />
+        ))}
+      </div>
       <Footer />
     </div>
   );

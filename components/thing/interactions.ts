@@ -17,6 +17,8 @@ export function useThingInteractions({
   parentLayout,
   fieldValue,
   onLiveUpdate,
+  scrollContainer,
+  worldOffset,
 }: {
   things: Thing[];
   thing: Thing;
@@ -26,6 +28,8 @@ export function useThingInteractions({
   parentLayout?: Layout;
   fieldValue: (target: Thing, name: string) => any;
   onLiveUpdate?: (payload: any) => void;
+  scrollContainer?: HTMLDivElement | null;
+  worldOffset: number;
 }) {
   const lastCodeRef = useRef(thing.code);
   const lastRelRef = useRef({ x: 0, y: 0 });
@@ -55,9 +59,34 @@ export function useThingInteractions({
           }
         : null;
 
+      const getWorldCoords = (ev: { clientX: number; clientY: number }) => {
+        if (scrollContainer) {
+          const containerRect = scrollContainer.getBoundingClientRect();
+          return {
+            x: Math.round(
+              scrollContainer.scrollLeft +
+                ev.clientX -
+                containerRect.left -
+                startXInRect -
+                worldOffset
+            ),
+            y: Math.round(
+              scrollContainer.scrollTop +
+                ev.clientY -
+                containerRect.top -
+                startYInRect -
+                worldOffset
+            ),
+          };
+        }
+        return {
+          x: Math.round(window.scrollX + ev.clientX - startXInRect - worldOffset),
+          y: Math.round(window.scrollY + ev.clientY - startYInRect - worldOffset),
+        };
+      };
+
       const handleMove = (ev: PointerEvent) => {
-        const x = Math.round(ev.clientX - startXInRect);
-        const y = Math.round(ev.clientY - startYInRect);
+        const { x, y } = getWorldCoords(ev);
         const relX = parentLayout ? x - parentLayout.x : x;
         const relY = parentLayout ? y - parentLayout.y : y;
         lastRelRef.current = { x: relX, y: relY };
@@ -163,7 +192,7 @@ export function useThingInteractions({
       window.addEventListener("pointermove", handleMove);
       window.addEventListener("pointerup", handleUp);
     },
-    [runtime, thing, layout, parentLayout, layouts, fieldValue, things]
+    [runtime, thing, layout, parentLayout, layouts, fieldValue, things, scrollContainer, worldOffset]
   );
 
   const handleResizePointerDown = useCallback(

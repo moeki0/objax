@@ -34,6 +34,7 @@ styleBorderRadius is "10px"
   things.push({
     id: generateCoolId(),
     code,
+    users: [],
     ...load(code),
     ...input,
   });

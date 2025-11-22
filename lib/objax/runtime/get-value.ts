@@ -108,13 +108,13 @@ export function getValue(
         case "date":
           // Day of month 1-31
           return now.getDate();
-        case "hour":
+        case "hours":
           return now.getHours();
-        case "minute":
+        case "minutes":
           return now.getMinutes();
-        case "second":
+        case "seconds":
           return now.getSeconds();
-        case "minisecond":
+        case "miniseconds":
           // Milliseconds; name kept as requested
           return now.getMilliseconds();
         case "epochSeconds":

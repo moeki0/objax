@@ -19,6 +19,7 @@
     "@imgly/background-removal-node": "^1.4.5",
     "@monaco-editor/react": "^4.7.0",
     "@openai/codex": "^0.61.0",
+    "@tanstack/react-virtual": "^3.13.12",
     "@types/pg": "^8.15.6",
     "@vercel/postgres": "^0.10.0",
     "ably": "^2.14.0",

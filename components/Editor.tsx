@@ -2,7 +2,7 @@
 "use client";
 
 import { load } from "@/lib/objax/runtime/load";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Runtime } from "@/lib/objax/runtime";
 import { Rnd } from "react-rnd";
 import Editor, { Monaco, OnChange, OnMount } from "@monaco-editor/react";
@@ -11,9 +11,11 @@ import { Thing } from "@/lib/objax/type";
 export function EditorComponent({
   thing,
   runtime,
+  editor,
 }: {
   thing: Thing;
   runtime: Runtime;
+  editor: boolean;
 }) {
   const edit = thing.code;
   const handleChange: OnChange = (value) => {
@@ -52,11 +54,35 @@ export function EditorComponent({
     monacoRef.current = monaco;
   };
 
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const scroller = document.querySelector(".scroller");
+    if (!scroller) {
+      return;
+    }
+    const handleScroll = () => {
+      setPos({
+        x: scroller.scrollTop + window.innerHeight / 2 - 200,
+        y: scroller.scrollLeft + window.innerWidth / 2 - 180,
+      });
+    };
+    scroller.addEventListener("scroll", handleScroll);
+    handleScroll();
+    return () => {
+      scroller.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  if (!editor) {
+    return <></>;
+  }
+
   return (
     <Rnd
       default={{
-        x: 0,
-        y: 0,
+        x: pos.x,
+        y: pos.y,
         width: 360,
         height: 400,
       }}
