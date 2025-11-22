@@ -14,7 +14,6 @@ type Props = {
   setScrollPos: (pos: ScrollPos) => void;
   setSelected: (thing: Thing) => void;
   setThings: Dispatch<SetStateAction<Thing[]>>;
-  currentCode: MutableRefObject<string>;
   publishUpdate: (payload: {
     upserts?: Thing[];
     deletes?: string[];
@@ -37,7 +36,6 @@ export function CanvasViewport({
   setScrollPos,
   setSelected,
   setThings,
-  currentCode,
   publishUpdate,
   schedulePersist,
   debounce,
@@ -78,7 +76,6 @@ export function CanvasViewport({
               setThings={setThings}
               thing={thing}
               setSelected={() => {
-                currentCode.current = thing.code || "";
                 setSelected(thing);
               }}
               editing={editing}

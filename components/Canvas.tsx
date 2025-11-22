@@ -35,7 +35,6 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
   }>({ upserts: new Map(), deletes: new Map(), timer: null });
   const worldIdRef = useRef<string | null>(null);
   worldIdRef.current = worldId;
-  const currentCodeRef = useRef("");
   const {
     getNextValue: getNextTransitionValue,
     keyFromEventAction,
@@ -220,7 +219,6 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
     publishUpdate,
     schedulePersist,
     setParseError,
-    currentCodeRef,
     selected,
     setSelected,
   });
@@ -265,8 +263,12 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
     const self = cur.find((tt) => tt.id === t.id) ?? t;
     const offsetXField = getField(cur, self.name, "offsetX");
     const offsetYField = getField(cur, self.name, "offsetY");
-    const offsetX = offsetXField ? Number(getValue(cur, offsetXField.value)) : 0;
-    const offsetY = offsetYField ? Number(getValue(cur, offsetYField.value)) : 0;
+    const offsetX = offsetXField
+      ? Number(getValue(cur, offsetXField.value))
+      : 0;
+    const offsetY = offsetYField
+      ? Number(getValue(cur, offsetYField.value))
+      : 0;
     const x = (self.x ?? 0) + (Number.isFinite(offsetX) ? offsetX : 0);
     const y = (self.y ?? 0) + (Number.isFinite(offsetY) ? offsetY : 0);
     if (!self.sticky) return { x, y };
@@ -301,7 +303,6 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
         setScrollPos={setScrollPos}
         setSelected={setSelected}
         setThings={setThings}
-        currentCode={currentCodeRef}
         publishUpdate={publishUpdate}
         schedulePersist={schedulePersist}
         debounce={debounce}
@@ -320,11 +321,7 @@ export function Canvas({ initialWorldUrl }: { initialWorldUrl?: string } = {}) {
         setIsSyntaxOpen={setIsSyntaxOpen}
         things={things}
         selected={selected}
-        setSelected={(t) => {
-          setSelected(t);
-          if (t) centerOnThing(t);
-        }}
-        currentCodeRef={currentCodeRef}
+        setSelected={setSelected}
         parseError={parseError}
       />
       <button

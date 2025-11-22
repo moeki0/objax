@@ -16,15 +16,16 @@ type ControlWindowProps = {
   onAdd: () => void;
   onDelete: () => void;
   onReset: () => void;
-  onChangeCode: (values: (string | undefined)[], ids: (string | undefined)[]) => void;
+  onChangeCode: (
+    values: (string | undefined)[],
+    ids: (string | undefined)[]
+  ) => void;
   onFlushCodeSave: (id: string, thing: Thing) => void;
   setIsSyntaxOpen: (open: boolean) => void;
   things: Thing[];
   selected: Thing | null;
   setSelected: Dispatch<SetStateAction<Thing | null>>;
-  currentCodeRef: MutableRefObject<string>;
   parseError: string | null;
-  onSelectThing?: (thing: Thing) => void;
 };
 
 export function ControlWindow({
@@ -39,9 +40,7 @@ export function ControlWindow({
   things,
   selected,
   setSelected,
-  currentCodeRef,
   parseError,
-  onSelectThing,
 }: ControlWindowProps) {
   const [windowPos, setWindowPos] = useState({ x: 10, y: 10 });
   const [windowSize, setWindowSize] = useState({ width: 400, height: 300 });
@@ -156,11 +155,13 @@ export function ControlWindow({
             <TextareaAutosize
               className="border bg-white w-full border-gray-300 rounded font-mono p-2"
               onChange={(e) => {
-                currentCodeRef.current = e.target.value;
                 onChangeCode([e.target.value], [selected.id]);
+                setSelected((prev) => ({ ...prev, code: e.target.value }));
               }}
-              onBlur={() => selected?.id && onFlushCodeSave(selected.id, selected)}
-              value={currentCodeRef.current}
+              onBlur={() =>
+                selected?.id && onFlushCodeSave(selected.id, selected)
+              }
+              value={selected.code}
               minRows={10}
               maxRows={10}
             />
@@ -188,8 +189,6 @@ export function ControlWindow({
         <ThingList
           setSelected={(t) => {
             setSelected(t);
-            currentCodeRef.current = t.code || "";
-            onSelectThing?.(t);
           }}
           selected={selected}
           things={things}

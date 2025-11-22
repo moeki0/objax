@@ -17,7 +17,6 @@ type Params = {
     deletes?: Thing[];
   }) => Promise<void>;
   setParseError: (err: string | null) => void;
-  currentCodeRef: MutableRefObject<string>;
   selected: Thing | null;
   setSelected: React.Dispatch<React.SetStateAction<Thing | null>>;
 };
@@ -54,7 +53,6 @@ export function useThingEditor({
   publishUpdate,
   schedulePersist,
   setParseError,
-  currentCodeRef,
   selected,
   setSelected,
 }: Params) {
@@ -121,17 +119,9 @@ export function useThingEditor({
     if (!selected) return;
     setThings((prev) => prev.filter((p) => p.id !== selected.id));
     setSelected(null);
-    currentCodeRef.current = "";
     publishUpdate({ deletes: [selected.id!] });
     schedulePersist({ deletes: [selected!] });
-  }, [
-    currentCodeRef,
-    publishUpdate,
-    schedulePersist,
-    selected,
-    setSelected,
-    setThings,
-  ]);
+  }, [publishUpdate, schedulePersist, selected, setSelected, setThings]);
 
   const handleChangeCode = useCallback(
     (values: (string | undefined)[], ids: (string | undefined)[]) => {
