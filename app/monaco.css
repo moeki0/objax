@@ -1,0 +1,15 @@
+.monaco-editor .margin {
+  width: 20px !important;
+}
+
+.monaco-editor .margin-view-overlays {
+  width: 20px !important;
+}
+
+.monaco-editor .margin-view-overlays div {
+  width: 20px !important;
+}
+
+.monaco-editor .monaco-scrollable-element {
+  left: 30px !important;
+}

@@ -3,10 +3,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { kv } from "@vercel/kv";
-import { Thing } from "@/lib/objax";
+import { Thing } from "@/lib/objax/runtime/get-transition";
 
 const worldZSet = (worldId: string) => `world:${worldId}:z`;
-const objectKey = (worldId: string, id: string) => `world:${worldId}:object:${id}`;
+const objectKey = (worldId: string, id: string) =>
+  `world:${worldId}:object:${id}`;
 const DEFAULT_WORLD_ID = "default";
 
 export async function GET(req: Request) {
@@ -137,6 +138,9 @@ export async function POST(req: Request) {
     console.error(e);
     const msg = String(e || "");
     const status = msg.includes("World limit") ? 400 : 500;
-    return NextResponse.json({ error: msg || "Failed to write objects" }, { status });
+    return NextResponse.json(
+      { error: msg || "Failed to write objects" },
+      { status }
+    );
   }
 }

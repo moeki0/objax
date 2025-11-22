@@ -1,0 +1,36 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { Name, Thing, TransitionType } from "../type";
+import { getField } from "./get-field";
+import { getValue } from "./get-value";
+
+export function transition({
+  things,
+  transition,
+}: {
+  things: Thing[];
+  transition: TransitionType;
+}) {
+  const field = getField(
+    things,
+    (transition.field.path[0] as Name).name,
+    (transition.field.path[1] as Name).name
+  );
+  if (!field) {
+    return;
+  }
+
+  if (!transition.states.length) {
+    return;
+  }
+
+  const states = transition.states.map((s) =>
+    getValue(things, s, transition.field)
+  );
+  const current = getValue(things, field.value, transition.field);
+  const idx = states.findIndex((v) => v === current);
+  const next = idx === -1 ? 0 : (idx + 1) % states.length;
+
+  if ((field.value as any).value !== undefined) {
+    (field.value as any).value = states[next];
+  }
+}
