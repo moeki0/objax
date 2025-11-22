@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface Name {
   type: "Name";
   name: string;
@@ -121,6 +122,7 @@ export interface Thing {
   id: string;
   code: string;
   name: string;
+  users: any[];
   sticky?: string;
   duplicate?: Duplicate;
   eventActions?: EventActionType[];

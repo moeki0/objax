@@ -2,7 +2,7 @@ import { World } from "@/lib/objax/runtime/world";
 import { useEffect, useMemo, useState } from "react";
 import { runtime } from "@/lib/objax/runtime";
 
-export function useWorld({ init }: { init: World }) {
+export function useWorld({ init }: { init: World | null }) {
   const [, force] = useState(0);
   const rt = useMemo(() => (init ? runtime({ world: init }) : null), [init]);
 

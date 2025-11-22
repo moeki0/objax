@@ -15,10 +15,12 @@ export function ThingComponent({
   things,
   thing,
   runtime,
+  onLiveUpdate,
 }: {
   things: Thing[];
   thing: Thing;
   runtime: Runtime;
+  onLiveUpdate?: (payload: any) => void;
 }) {
   const [editor, setEditor] = useState(false);
   useEffect(() => {
@@ -70,6 +72,7 @@ export function ThingComponent({
     layouts,
     parentLayout,
     fieldValue,
+    onLiveUpdate,
   });
 
   const lowerFirst = (str: string) => {

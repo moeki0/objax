@@ -16,6 +16,7 @@ export function useThingInteractions({
   layouts,
   parentLayout,
   fieldValue,
+  onLiveUpdate,
 }: {
   things: Thing[];
   thing: Thing;
@@ -24,6 +25,7 @@ export function useThingInteractions({
   layouts: LayoutMaps;
   parentLayout?: Layout;
   fieldValue: (target: Thing, name: string) => any;
+  onLiveUpdate?: (payload: any) => void;
 }) {
   const lastCodeRef = useRef(thing.code);
   const lastRelRef = useRef({ x: 0, y: 0 });
@@ -67,6 +69,7 @@ export function useThingInteractions({
         lastCodeRef.current = code;
         const result = load(code);
         runtime.update({ id: thing.id, input: { ...result, code } });
+        onLiveUpdate?.({ id: thing.id, ...result, code });
       };
 
       const handleUp = () => {
@@ -123,6 +126,7 @@ export function useThingInteractions({
           lastCodeRef.current = code;
           const result = load(code);
           runtime.update({ id: thing.id, input: { ...result, code } });
+          onLiveUpdate?.({ id: thing.id, ...result, code });
           window.removeEventListener("pointermove", handleMove);
           window.removeEventListener("pointerup", handleUp);
           return;
@@ -149,6 +153,7 @@ export function useThingInteractions({
             lastCodeRef.current = code;
             const result = load(code);
             runtime.update({ id: thing.id, input: { ...result, code } });
+            onLiveUpdate?.({ id: thing.id, ...result, code });
           }
         }
         window.removeEventListener("pointermove", handleMove);
@@ -182,6 +187,7 @@ export function useThingInteractions({
         const code = rewriteSizeInCode({ code: thing.code, width, height });
         const result = load(code);
         runtime.update({ id: thing.id, input: { ...result, code } });
+        onLiveUpdate?.({ id: thing.id, ...result, code });
       };
 
       const handleUp = () => {

@@ -2,7 +2,7 @@
 "use client";
 
 import { load } from "@/lib/objax/runtime/load";
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import { Runtime } from "@/lib/objax/runtime";
 import { Rnd } from "react-rnd";
 import Editor, { Monaco, OnChange, OnMount } from "@monaco-editor/react";
