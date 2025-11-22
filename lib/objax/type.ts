@@ -84,6 +84,11 @@ export interface IntegerType {
   value: number;
 }
 
+export interface NumberType {
+  type: "Number";
+  value: number;
+}
+
 export interface ArrayType {
   type: "Array";
   value: ValueType[];
@@ -105,10 +110,22 @@ export interface BlockType {
   expr: ValueType;
 }
 
+export interface ConstantType {
+  type: "Constant";
+  value: "pi" | "e";
+}
+
+export interface FunctionCallType {
+  type: "FunctionCall";
+  name: Name;
+  args: ValueType[];
+}
+
 export type ValueType =
   | BooleanType
   | StringType
   | IntegerType
+  | NumberType
   | BinaryOp
   | ArrayType
   | FieldValueType
@@ -116,11 +133,15 @@ export type ValueType =
   | OrType
   | AndType
   | NotType
-  | ItType;
+  | ItType
+  | ConstantType
+  | FunctionCallType;
 
 export interface Thing {
   id: string;
   code: string;
+  x: number;
+  y: number;
   name: string;
   users: any[];
   sticky?: string;

@@ -22,11 +22,14 @@ export function add({
     length: 2,
   });
 
+  const x = input?.x ?? 400;
+  const y = input?.y ?? 400;
+
   const code = `name is ${name}
 width is 100
 height is 100
-x is 400
-y is 400
+x is ${Math.round(x)}
+y is ${Math.round(y)}
 styleBorder is "1px solid #ddd"
 styleBorderRadius is "10px"
 `;

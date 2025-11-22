@@ -1,8 +1,11 @@
-import { Thing } from "../type";
+import { Name, Thing } from "../type";
 import { action } from "./action";
 import { add } from "./add";
+import { getTransition } from "./get-transition";
 import { load } from "./load";
 import { render } from "./render";
+import { rewriteValueInCode } from "./rewrite-value-in-code";
+import { transition } from "./transition";
 import { World } from "./world";
 
 const FPS = 60;
@@ -42,10 +45,18 @@ export function runtime({ world }: { world: World }): Runtime {
         return;
       }
       const eas = thing.eventActions.filter((ea) =>
-        ea.name.name.toLowerCase().match(event)
+        ea.name.name.toLowerCase().match(event.toLowerCase())
       );
       for (const ea of eas) {
         action({ things: world.things, ea });
+        const t = getTransition(
+          world.things,
+          (ea.transition.path[0] as Name).name,
+          (ea.transition.path[1] as Name).name
+        );
+        if (t) {
+          transition({ things: world.things, transition: t });
+        }
       }
     },
     subscribe: (listener) => {

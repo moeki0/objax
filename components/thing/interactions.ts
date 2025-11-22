@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/preserve-manual-memoization */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useRef } from "react";
 import { Runtime } from "@/lib/objax/runtime";

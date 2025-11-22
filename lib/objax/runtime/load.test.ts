@@ -126,9 +126,9 @@ describe("load", () => {
         type: "Reference",
         path: [
           { type: "Name", name: "foo" },
-          { type: "Name", name: "0" },
+          { type: "Integer", value: 0 },
           { type: "Name", name: "bar" },
-          { type: "Name", name: "9" },
+          { type: "Integer", value: 9 },
         ],
       },
     });

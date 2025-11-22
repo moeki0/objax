@@ -7,15 +7,18 @@ import { Runtime } from "@/lib/objax/runtime";
 import { Rnd } from "react-rnd";
 import Editor, { Monaco, OnChange, OnMount } from "@monaco-editor/react";
 import { Thing } from "@/lib/objax/type";
+import { IoCloseSharp } from "react-icons/io5";
 
 export function EditorComponent({
   thing,
   runtime,
   editor,
+  setEditor,
 }: {
   thing: Thing;
   runtime: Runtime;
   editor: boolean;
+  setEditor: (editor: boolean) => void;
 }) {
   const edit = thing.code;
   const handleChange: OnChange = (value) => {
@@ -89,7 +92,14 @@ export function EditorComponent({
       draggablehandle=".header"
       className="border border-gray-300 shadow-xl rounded overflow-hidden z-9999 bg-white"
     >
-      <div className="header h-7 w-full bg-gray-50 border-b border-gray-300"></div>
+      <div className="header h-7 w-full bg-gray-50 text-gray-500 px-1 rounded border-b border-gray-300 flex items-center">
+        <button
+          onClick={() => setEditor(false)}
+          className="border border-gray-300 bg-white p-px"
+        >
+          <IoCloseSharp />
+        </button>
+      </div>
       <Editor
         theme="vs"
         value={edit}

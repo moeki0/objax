@@ -28,7 +28,17 @@ export function WorldComponent() {
   const liveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const runtime = useWorld({ init });
-  useHotkeys("ctrl+n", () => runtime?.add({}));
+  useHotkeys("ctrl+n", () => {
+    const el = scrollRef.current;
+    if (runtime && el) {
+      const x = el.scrollLeft + window.innerWidth / 2 - 50000 - 50;
+      const y = el.scrollTop + window.innerHeight / 2 - 50000 - 50;
+      console.log(x);
+      runtime.add({ input: { x, y } });
+    } else {
+      runtime?.add({});
+    }
+  });
   const publishRealtime = useCallback(
     async ({
       upserts = [] as any[],

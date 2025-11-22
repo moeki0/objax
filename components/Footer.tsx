@@ -24,7 +24,7 @@ export function Footer() {
 
   return (
     <>
-      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 p-3">
+      <footer className="fixed bottom-0 z-10000 left-1/2 -translate-x-1/2 p-3">
         <div className="flex items-center gap-3 font-mono text-xs">
           <div className="text-nowrap">Ctrl + N to add</div>
           <div className="text-nowrap">/</div>
@@ -36,7 +36,7 @@ export function Footer() {
           <div>/</div>
           <button
             onClick={() => setHelp(!help)}
-            className="hover:bg-gray-50 text-nowrap border border-gray-300 px-3 py-1 rounded-full"
+            className="hover:bg-gray-50 bg-white text-nowrap border border-gray-300 px-3 py-1 rounded-full"
           >
             ? Help
           </button>

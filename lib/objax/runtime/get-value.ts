@@ -22,6 +22,8 @@ export function getValue(
   }
   if (t.type === "Integer") {
     return t.value;
+  } else if (t.type === "Number") {
+    return t.value;
   } else if (t.type === "String") {
     return t.value;
   } else if (t.type === "Compare") {
@@ -89,7 +91,35 @@ export function getValue(
       return left * right;
     } else if (t.op === "/") {
       return left / right;
+    } else if (t.op === "%") {
+      return left % right;
+    } else if (t.op === "^" || t.op === "**") {
+      return Math.pow(left, right);
     }
+  } else if (t.type === "FunctionCall") {
+    const fn = t.name.name.toLowerCase();
+    const args = t.args.map((arg) => getValue(things, arg, it)) as number[];
+    const math = Math as Record<string, (a: number, b?: number) => number>;
+    switch (fn) {
+      case "sin":
+      case "cos":
+      case "tan":
+      case "sqrt":
+      case "exp":
+      case "log":
+      case "abs":
+      case "floor":
+      case "ceil":
+        return math[fn]?.(Number(args[0]));
+      case "min":
+      case "max":
+        return math[fn]?.(...(args as number[]));
+      default:
+        return undefined;
+    }
+  } else if (t.type === "Constant") {
+    if (t.value === "pi") return Math.PI;
+    if (t.value === "e") return Math.E;
   } else if (t.type === "Reference") {
     // Built-in Time namespace support
     const ns = (t.path[0] as Name | undefined)?.name;
@@ -128,7 +158,7 @@ export function getValue(
           break;
       }
     }
-    // Resolve base field value (first two segments must be Names)
+    // Resolve base field value (first segment must be Name, second normally Name)
     const head = t.path[0] as Name | undefined;
     const second = t.path[1] as Name | IntegerType | undefined;
     if (!head || !second || (second as any).type !== "Name") {
@@ -144,8 +174,14 @@ export function getValue(
     if (t.path.length > 2) {
       for (let i = 2; i < t.path.length; i++) {
         const seg: any = t.path[i];
-        if (!Number.isNaN(seg.name)) {
-          const idx = Number(seg.name);
+        const idxVal =
+          seg?.type === "Integer"
+            ? seg.value
+            : !Number.isNaN(seg?.name)
+            ? Number(seg.name)
+            : null;
+        if (idxVal !== null && idxVal !== undefined) {
+          const idx = Number(idxVal);
           if (Array.isArray(cur)) {
             cur = cur[idx - 1] || "";
           } else {

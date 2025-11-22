@@ -4,7 +4,7 @@
 import { Runtime } from "@/lib/objax/runtime";
 import { getField } from "@/lib/objax/runtime/get-field";
 import { Thing } from "@/lib/objax/type";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorComponent } from "./Editor";
 import { getValue } from "@/lib/objax/runtime/get-value";
 import { load } from "@/lib/objax/runtime/load";
@@ -106,20 +106,26 @@ export function ThingComponent({
     return s;
   };
 
+  const [editing, setEditing] = useState(text);
+
   const handleTextChange = (value: string) => {
+    setEditing(value);
     const code = rewriteFieldInCode({ code: thing.code, field: "text", value });
     const result = load(code);
     runtime.update({ id: thing.id, input: { ...result, code } });
   };
 
+  const [focus, setFocus] = useState(false);
+
   return (
     <>
-        <EditorComponent
-          key={thing.id}
-          thing={things.find((t) => t.id === thing.id)!}
-          runtime={runtime}
-          editor={editor}
-        />
+      <EditorComponent
+        key={thing.id}
+        thing={things.find((t) => t.id === thing.id)!}
+        runtime={runtime}
+        editor={editor}
+        setEditor={setEditor}
+      />
       {isVisible && (
         <div
           onPointerDown={handlePointerDown}
@@ -130,6 +136,8 @@ export function ThingComponent({
               setEditor(!editor);
             }
           }}
+          onMouseEnter={() => runtime.handle({ thing, event: "mouseEnter" })}
+          onMouseLeave={() => runtime.handle({ thing, event: "mouseLeave" })}
           style={{
             height: `${v("height")}px`,
             width: `${v("width")}px`,
@@ -143,7 +151,15 @@ export function ThingComponent({
         >
           {isEditable ? (
             <textarea
-              defaultValue={text}
+              value={focus ? editing : text}
+              onFocus={() => {
+                setEditing(text);
+                setFocus(true);
+              }}
+              onBlur={() => {
+                setFocus(false);
+                setEditing(text);
+              }}
               className="w-full h-full resize-none outline-none p-1"
               onPointerDown={(e) => e.stopPropagation()}
               onChange={(e) => handleTextChange(e.target.value)}

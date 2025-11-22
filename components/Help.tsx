@@ -35,11 +35,11 @@ export function Help({ help }: { help: boolean }) {
         height: 400,
       }}
       draggablehandle=".header"
-      className="border border-gray-300 shadow-xl rounded overflow-hidden z-9999 bg-white"
+      className="border border-gray-300 shadow-xl rounded z-9999 bg-white"
     >
       <div className="header h-7 w-full bg-gray-50 border-b border-gray-300"></div>
-      <div className="p-3 text-sm">
-        <pre>
+      <div className="p-3 overflow-scroll h-[calc(100%-30px)]">
+        <pre className="break-all text-wrap text-xs">
           {`# Basics (name is required)
 name is Hello
 
@@ -48,6 +48,8 @@ width is 100
 height is 100
 x is 100
 y is 100
+# decimal numbers are supported
+opacity is 0.25
 
 # CSS Style (style** fields)
 styleBorder is "1px solid #ddd"
@@ -102,6 +104,19 @@ width is 10 + 10
 width is 20 - 10
 width is 10 / 3
 width is 100 * 100
+width is 10 % 3
+width is 2 ^ 3      # also works with **
+
+# Math functions
+width is sin(Time.second)
+height is cos(Time.second)
+width is sqrt(9)
+height is abs(-10)
+width is max(10, 20, 5)
+
+# Constants
+radius is pi * 10
+growth is e ^ 2
 
 # Logical
 visible is Hello.state and Hi.state
@@ -119,9 +134,6 @@ text is Time.hour _ ":" _ Time.minute _ ":" _ Time.second
 # = also works for assignment
 title = "hello"
 flag is true
-
-# Reference paths can include numbers
-path = foo.0.bar
 
 # Non-ASCII names are allowed (e.g., Japanese)
 name is 世界
