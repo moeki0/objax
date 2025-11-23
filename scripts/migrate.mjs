@@ -1,4 +1,6 @@
-import { sql } from "@vercel/postgres";
+import pg from "pg";
+
+const { Client } = pg;
 
 const MIGRATIONS = [
   `
@@ -20,10 +22,20 @@ const MIGRATIONS = [
 ];
 
 async function main() {
-  for (const statement of MIGRATIONS) {
-    await sql.query(statement);
+  const client = new Client({
+    connectionString:
+      process.env.DATABASE_URL ||
+      "postgresql://postgres@localhost:5432/postgres",
+  });
+  await client.connect();
+  try {
+    for (const statement of MIGRATIONS) {
+      await client.query(statement);
+    }
+    console.log("[migrate] done");
+  } finally {
+    await client.end();
   }
-  console.log("[migrate] done");
 }
 
 main().catch((e) => {

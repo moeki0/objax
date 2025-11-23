@@ -29,6 +29,7 @@
     "next": "16.0.3",
     "next-auth": "^4.24.8",
     "peggy": "^5.0.6",
+    "pg": "^8.16.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-draggable": "^4.5.0",

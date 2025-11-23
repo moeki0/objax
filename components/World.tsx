@@ -345,8 +345,8 @@ export function WorldComponent() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name"
-          className="w-full border border-gray-300 rounded bg-white shadow px-2 py-1 text-sm outline-none focus:border-blue-500"
+          placeholder="Search"
+          className="w-full border border-gray-300 rounded-full bg-white px-4 min-w-80 py-2 text-sm outline-none focus:border-blue-500"
         />
         {searchResults.length > 0 && (
           <div className="max-h-64 overflow-auto bg-white border border-gray-200 shadow rounded divide-y divide-gray-100">

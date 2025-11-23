@@ -1,4 +1,4 @@
-import { sql } from "@vercel/postgres";
+import { Pool } from "pg";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -24,15 +24,15 @@ const MIGRATIONS: string[] = [
   `,
 ];
 
-async function migrate() {
+async function migrate(pool: Pool) {
   for (const statement of MIGRATIONS) {
-    await sql.query(statement);
+    await pool.query(statement);
   }
 }
 
-export function runMigrationsOnce() {
+export function runMigrationsOnce(pool: Pool) {
   if (!globalThis.__objaxDbMigrate) {
-    globalThis.__objaxDbMigrate = migrate().catch((e) => {
+    globalThis.__objaxDbMigrate = migrate(pool).catch((e) => {
       console.error("[db] migration failed", e);
       throw e;
     });
