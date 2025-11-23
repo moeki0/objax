@@ -157,7 +157,7 @@ export function WorldComponent() {
 
     if (dx !== 0 || dy !== 0) {
       setOffset((prev) => {
-        return { x: prev.x + dx * 2, y: prev.y + dy * 2 };
+        return { x: prev.x + dx, y: prev.y + dy };
       });
       requestAnimationFrame(() => {
         if (!scrollRef.current) return;
@@ -315,7 +315,6 @@ export function WorldComponent() {
         x + renderOffset.x + width / 2 + WORLD_OFFSET - window.innerWidth / 2;
       const targetY =
         y + renderOffset.y + height / 2 + WORLD_OFFSET - window.innerHeight / 2;
-      console.log(targetX);
       el.scrollTo({ left: targetX, top: targetY, behavior: "smooth" });
       setHighlightId(thing.id);
     },
