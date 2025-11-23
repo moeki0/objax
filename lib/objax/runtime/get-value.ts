@@ -99,7 +99,7 @@ export function getValue(
   } else if (t.type === "FunctionCall") {
     const fn = t.name.name.toLowerCase();
     const args = t.args.map((arg) => getValue(things, arg, it)) as number[];
-    const math = Math as Record<string, (a: number, b?: number) => number>;
+    const math = Math;
     switch (fn) {
       case "sin":
       case "cos":

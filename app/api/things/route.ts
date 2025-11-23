@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       : [];
     const byId = new Map(existing.map((row) => [row.id, row]));
 
-    const savedUpserts: Thing[] = [];
+    const savedUpserts: Partial<Thing>[] = [];
 
     for (const obj of upserts) {
       const id = (obj as any)?.id;

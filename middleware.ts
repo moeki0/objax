@@ -1,4 +1,7 @@
-export { default } from "next-auth/middleware";
+import NextAuthMiddleware from "next-auth/middleware";
+
+// Re-export as a default middleware function understood by Next.js
+export default NextAuthMiddleware;
 
 // Protect all app routes, but exclude:
 // - /api (all), handled per-route

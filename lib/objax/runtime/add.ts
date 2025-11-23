@@ -38,6 +38,8 @@ styleBorderRadius is "10px"
     id: generateCoolId(),
     code,
     users: [],
+    x,
+    y,
     ...load(code),
     ...input,
   });
