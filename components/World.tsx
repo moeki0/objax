@@ -443,7 +443,7 @@ export function WorldComponent() {
         onScroll={shiftViewportIfNeeded}
       >
         <div
-          className="relative"
+          className="relative world"
           style={{
             width: worldWidth,
             height: worldHeight,

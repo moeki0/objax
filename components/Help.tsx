@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { IoCloseSharp } from "react-icons/io5";
 import { Rnd } from "react-rnd";
+import { WORLD_OFFSET } from "./World";
 
 export function Help({
   help,
@@ -18,8 +19,8 @@ export function Help({
     }
     const handleScroll = () => {
       setPos({
-        x: scroller.scrollTop + window.innerHeight / 2 - 200,
-        y: scroller.scrollLeft + window.innerWidth / 2 - 180,
+        x: scroller.scrollLeft + window.innerWidth / 2 - 200,
+        y: scroller.scrollTop + window.innerHeight / 2 - 180,
       });
     };
     scroller.addEventListener("scroll", handleScroll);

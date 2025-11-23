@@ -145,8 +145,8 @@ export function ThingComponent({
           style={{
             height: `${v("height")}px`,
             width: `${v("width")}px`,
-            left: `${layout.x + worldOffset.x + WORLD_OFFSET}px`,
-            top: `${layout.y + worldOffset.y + WORLD_OFFSET}px`,
+            left: `${layout.x + WORLD_OFFSET}px`,
+            top: `${layout.y + WORLD_OFFSET}px`,
             zIndex: 100 + (layout.depth ?? 0),
             opacity: mounted ? 1 : 0,
             transition: "opacity 200ms ease-out",

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Help } from "./Help";
 import { WORLD_OFFSET } from "./World";
+import { createPortal } from "react-dom";
 
 export function Footer({
   worldOffset,
@@ -57,7 +58,11 @@ export function Footer({
           </button>
         </div>
       </footer>
-      <Help help={help} setHelp={setHelp} />
+      {document.querySelector(".world") &&
+        createPortal(
+          <Help help={help} setHelp={setHelp} />,
+          document.querySelector(".world")!
+        )}
     </>
   );
 }

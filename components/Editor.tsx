@@ -34,7 +34,6 @@ export function EditorComponent({
         []
       );
     } catch (e: any) {
-      console.log(monacoRef.current);
       monacoRef.current?.editor.setModelMarkers(
         editorRef.current.getModel(),
         "owner",
@@ -68,16 +67,16 @@ export function EditorComponent({
     }
     const handleScroll = () => {
       setPos({
-        x: scroller.scrollTop + window.innerHeight / 2 - 200,
-        y: scroller.scrollLeft + window.innerWidth / 2 - 180,
+        x: scroller.scrollLeft + window.innerWidth / 2 - 200,
+        y: scroller.scrollTop + window.innerHeight / 2 - 180,
       });
     };
-    scroller.addEventListener("scroller", handleScroll);
+    scroller.addEventListener("scroll", handleScroll);
     handleScroll();
     return () => {
-      scroller.removeEventListener("scroller", handleScroll);
+      scroller.removeEventListener("scroll", handleScroll);
     };
-  }, []);
+  }, [thing, worldOffset.x, worldOffset.y]);
 
   if (!editor) {
     return <></>;
