@@ -85,6 +85,7 @@ export function ThingComponent({
     things,
     thing,
     runtime,
+    editor,
     layout,
     layouts,
     parentLayout,

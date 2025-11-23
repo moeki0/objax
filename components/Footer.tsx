@@ -25,7 +25,7 @@ export function Footer() {
   return (
     <>
       <footer className="fixed bottom-0 z-10000 left-1/2 -translate-x-1/2 p-3">
-        <div className="flex items-center gap-3 font-mono text-xs">
+        <div className="flex items-center gap-3 font-mono w-screen justify-center flex-wrap text-xs">
           <div className="text-nowrap">Ctrl + N to add</div>
           <div className="text-nowrap">/</div>
           <div className="text-nowrap">⌘ + Click to edit</div>
@@ -40,6 +40,10 @@ export function Footer() {
           >
             ? Help
           </button>
+          <div>/</div>
+          <a href="mailto:hi@moeki.org" className="text-nowrap">
+            Contact
+          </a>
         </div>
       </footer>
       <Help help={help} />

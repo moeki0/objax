@@ -10,6 +10,6 @@ export default NextAuthMiddleware;
 // - static assets and Next internals
 export const config = {
   matcher: [
-    "/((?!api|_next|favicon.ico|login|.*\\.(?:png|jpg|jpeg|svg|gif|webp|css|js|ico|txt|xml)).*)",
+    "/((?!api|_next|favicon.ico|login|terms|privacy|.*\\.(?:png|jpg|jpeg|svg|gif|webp|css|js|ico|txt|xml)).*)",
   ],
 };

@@ -54,6 +54,9 @@ opacity is 0.25
 # CSS Style (style** fields)
 styleBorder is "1px solid #ddd"
 
+# Image
+image is "https://example.com/image.png"
+
 # Visibility / editability
 visible is true
 editable is true

@@ -13,6 +13,7 @@ export function useThingInteractions({
   things,
   thing,
   runtime,
+  editor,
   layout,
   layouts,
   parentLayout,
@@ -24,6 +25,7 @@ export function useThingInteractions({
   things: Thing[];
   thing: Thing;
   runtime: Runtime;
+  editor: boolean;
   layout: Layout;
   layouts: LayoutMaps;
   parentLayout?: Layout;
@@ -43,6 +45,9 @@ export function useThingInteractions({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!editor) {
+        return;
+      }
       const rect = e.currentTarget.getBoundingClientRect();
       const startXInRect = e.clientX - rect.x;
       const startYInRect = e.clientY - rect.y;
@@ -81,8 +86,12 @@ export function useThingInteractions({
           };
         }
         return {
-          x: Math.round(window.scrollX + ev.clientX - startXInRect - worldOffset),
-          y: Math.round(window.scrollY + ev.clientY - startYInRect - worldOffset),
+          x: Math.round(
+            window.scrollX + ev.clientX - startXInRect - worldOffset
+          ),
+          y: Math.round(
+            window.scrollY + ev.clientY - startYInRect - worldOffset
+          ),
         };
       };
 
@@ -193,11 +202,28 @@ export function useThingInteractions({
       window.addEventListener("pointermove", handleMove);
       window.addEventListener("pointerup", handleUp);
     },
-    [runtime, thing, layout, parentLayout, layouts, fieldValue, things, scrollContainer, worldOffset]
+    [
+      editor,
+      thing,
+      fieldValue,
+      parentLayout,
+      scrollContainer,
+      worldOffset,
+      runtime,
+      onLiveUpdate,
+      things,
+      layout.parentName,
+      layout.width,
+      layout.height,
+      layouts.byId,
+    ]
   );
 
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!editor) {
+        return;
+      }
       e.stopPropagation();
       e.preventDefault();
       const startWidth = Number(fieldValue(thing, "width") ?? 0);
