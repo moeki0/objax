@@ -26,14 +26,15 @@ export function rewriteValueInCode({
   };
 
   const replacement = `${field} is ${format(value)}`;
-  const pattern = new RegExp(`^${field}\\s*is\\s*-?\\d*$`, "m");
+  const fieldPattern = new RegExp(`^${field}\\s*is\\s*.+\\..+$`, "m");
+  console.log(fieldPattern)
+  if (fieldPattern.test(code)) {
+    return code;
+  }
+  const pattern = new RegExp(`^${field}\\s*is\\s*.*$`, "m");
 
   if (pattern.test(code)) {
     return code.replace(pattern, replacement);
-  }
-  const fieldPattern = new RegExp(`^${field}\\s*is\\s*.*$`, "m");
-  if (fieldPattern.test(code)) {
-    return code;
   }
   return `${code}\n${replacement}`;
 }
