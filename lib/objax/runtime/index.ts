@@ -4,7 +4,6 @@ import { add } from "./add";
 import { getTransition } from "./get-transition";
 import { load } from "./load";
 import { render } from "./render";
-import { rewriteValueInCode } from "./rewrite-value-in-code";
 import { transition } from "./transition";
 import { World } from "./world";
 
@@ -17,7 +16,11 @@ export interface Runtime {
   handle: ({ thing, event }: { thing: Thing; event: string }) => void;
   update: ({ id, input }: { id: string; input: Partial<Thing> }) => void;
   subscribe: (listener: Listener) => void;
-  add: ({ input }: { input?: Partial<Thing> }) => void;
+  add: ({
+    input,
+  }: {
+    input?: Partial<Thing> & { x: number; y: number };
+  }) => void;
 }
 
 export type Listener = () => void;

@@ -8,6 +8,7 @@ import { rewritePosInCode } from "@/lib/objax/runtime/rewrite-pos-in-code";
 import { rewriteSizeInCode } from "@/lib/objax/runtime/rewrite-size-in-code";
 import { rewriteStickyInCode } from "@/lib/objax/runtime/rewrite-sticky-in-code";
 import { Layout, LayoutMaps } from "./layout";
+import { WORLD_OFFSET } from "../World";
 
 export function useThingInteractions({
   things,
@@ -32,7 +33,7 @@ export function useThingInteractions({
   fieldValue: (target: Thing, name: string) => any;
   onLiveUpdate?: (payload: any) => void;
   scrollContainer?: HTMLDivElement | null;
-  worldOffset: number;
+  worldOffset: { x: number; y: number };
 }) {
   const lastCodeRef = useRef(thing.code);
   const lastRelRef = useRef({ x: 0, y: 0 });
@@ -74,23 +75,23 @@ export function useThingInteractions({
                 ev.clientX -
                 containerRect.left -
                 startXInRect -
-                worldOffset
+                worldOffset.x
             ),
             y: Math.round(
               scrollContainer.scrollTop +
                 ev.clientY -
                 containerRect.top -
                 startYInRect -
-                worldOffset
+                worldOffset.y
             ),
           };
         }
         return {
           x: Math.round(
-            window.scrollX + ev.clientX - startXInRect - worldOffset
+            window.scrollX + ev.clientX - startXInRect - worldOffset.x
           ),
           y: Math.round(
-            window.scrollY + ev.clientY - startYInRect - worldOffset
+            window.scrollY + ev.clientY - startYInRect - worldOffset.y
           ),
         };
       };
@@ -102,8 +103,8 @@ export function useThingInteractions({
         lastRelRef.current = { x: relX, y: relY };
         const code = rewritePosInCode({
           code: lastCodeRef.current,
-          x: relX,
-          y: relY,
+          x: relX - WORLD_OFFSET,
+          y: relY - WORLD_OFFSET,
         });
         lastCodeRef.current = code;
         const result = load(code);

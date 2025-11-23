@@ -6,7 +6,8 @@ import { IoLogoGoogle } from "react-icons/io5";
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="p-6 text-center space-x-6">
+      <div className="p-6 text-center space-x-6 max-w-[600px]">
+        <div className="space-y-2 mb-10 text-gray-700">
         <p>We are truly in the age of AI.</p>
         <p>My work style has changed significantly in the past year as well.</p>
         <p>
@@ -22,6 +23,7 @@ export default function LoginPage() {
           UIs and games.
         </p>
         <p>Please enjoy the {'"past"'} joy of coding.</p>
+        </div>
         <h1 className="font-semibold text-9xl">Objax</h1>
         <button
           className="border bg-white hover:bg-gray-50 cursor-pointer px-4 py-2 rounded border-gray-300 justify-self-center flex gap-3 items-center justify-center"

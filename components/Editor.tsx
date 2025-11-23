@@ -14,11 +14,13 @@ export function EditorComponent({
   runtime,
   editor,
   setEditor,
+  worldOffset,
 }: {
   thing: Thing;
   runtime: Runtime;
   editor: boolean;
   setEditor: (editor: boolean) => void;
+  worldOffset: { x: number; y: number };
 }) {
   const edit = thing.code;
   const handleChange: OnChange = (value) => {
@@ -70,10 +72,10 @@ export function EditorComponent({
         y: scroller.scrollLeft + window.innerWidth / 2 - 180,
       });
     };
-    scroller.addEventListener("scroll", handleScroll);
+    scroller.addEventListener("scroller", handleScroll);
     handleScroll();
     return () => {
-      scroller.removeEventListener("scroll", handleScroll);
+      scroller.removeEventListener("scroller", handleScroll);
     };
   }, []);
 

@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { Help } from "./Help";
+import { WORLD_OFFSET } from "./World";
 
-export function Footer() {
+export function Footer({
+  worldOffset,
+}: {
+  worldOffset: { x: number; y: number };
+}) {
   const [posY, setPosY] = useState(0);
   const [posX, setPosX] = useState(0);
 
@@ -11,14 +16,24 @@ export function Footer() {
       return;
     }
     const handleScroll = () => {
-      setPosY(scroller.scrollTop - 50000 + window.innerHeight / 2);
-      setPosX(scroller.scrollLeft - 50000 + window.innerWidth / 2);
+      setPosY(
+        scroller.scrollTop +
+          window.innerHeight / 2 +
+          worldOffset.y -
+          WORLD_OFFSET
+      );
+      setPosX(
+        scroller.scrollLeft +
+          window.innerWidth / 2 +
+          worldOffset.x -
+          WORLD_OFFSET
+      );
     };
     scroller.addEventListener("scroll", handleScroll);
     return () => {
       scroller.removeEventListener("scroll", handleScroll);
     };
-  }, []);
+  }, [worldOffset]);
 
   const [help, setHelp] = useState(false);
 
@@ -40,10 +55,6 @@ export function Footer() {
           >
             ? Help
           </button>
-          <div>/</div>
-          <a href="mailto:hi@moeki.org" className="text-nowrap">
-            Contact
-          </a>
         </div>
       </footer>
       <Help help={help} setHelp={setHelp} />

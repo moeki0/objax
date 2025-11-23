@@ -15,7 +15,9 @@ function Section({
   return (
     <section className="space-y-2">
       <h2 className="text-xl font-semibold">{title}</h2>
-      <div className="space-y-2 text-sm leading-6 text-gray-700">{children}</div>
+      <div className="space-y-2 text-sm leading-6 text-gray-700">
+        {children}
+      </div>
     </section>
   );
 }
@@ -27,10 +29,10 @@ export default function PrivacyPolicyPage() {
         <p className="text-sm font-medium text-gray-500">Objax</p>
         <h1 className="text-3xl font-bold">Privacy Policy</h1>
         <p className="text-sm text-gray-600">
-          This Privacy Policy explains how Objax (&quot;we&quot;, &quot;our&quot;,
-          or &quot;us&quot;) collects, uses, shares, and protects information
-          about you when you use our products, services, and websites
-          (collectively, the &quot;Services&quot;).
+          This Privacy Policy explains how Objax (&quot;we&quot;,
+          &quot;our&quot;, or &quot;us&quot;) collects, uses, shares, and
+          protects information about you when you use our products, services,
+          and websites (collectively, the &quot;Services&quot;).
         </p>
       </header>
 
@@ -45,10 +47,6 @@ export default function PrivacyPolicyPage() {
             identifiers necessary to operate and secure the Services.
           </li>
           <li>
-            Content you provide, such as files, prompts, or feedback submitted
-            through the Services.
-          </li>
-          <li>
             Device and connection information, including browser type, language,
             IP address, and approximate location derived from IP address.
           </li>
@@ -60,10 +58,6 @@ export default function PrivacyPolicyPage() {
           <li>To provide, maintain, and improve the Services.</li>
           <li>
             To authenticate you, secure accounts, and prevent fraud or abuse.
-          </li>
-          <li>
-            To communicate with you about updates, new features, and support
-            requests.
           </li>
           <li>
             To conduct analytics that help us understand performance and
@@ -80,8 +74,8 @@ export default function PrivacyPolicyPage() {
             appropriate confidentiality and security obligations.
           </li>
           <li>
-            When required by law, legal process, or to protect rights,
-            property, or safety of Objax, our users, or others.
+            When required by law, legal process, or to protect rights, property,
+            or safety of Objax, our users, or others.
           </li>
           <li>
             In connection with a merger, acquisition, or sale of assets, subject
@@ -129,8 +123,8 @@ export default function PrivacyPolicyPage() {
       <Section title="8. Changes to This Policy">
         <p>
           We may update this Privacy Policy from time to time. If changes are
-          material, we will provide notice as required by law. Your continued use
-          of the Services after the effective date of an updated policy
+          material, we will provide notice as required by law. Your continued
+          use of the Services after the effective date of an updated policy
           constitutes acceptance of the changes.
         </p>
       </Section>

@@ -17,9 +17,11 @@ export type LayoutMaps = {
 
 export function useThingLayouts({
   things,
+  thing,
   fieldValue,
 }: {
   things: Thing[];
+  thing?: Thing;
   fieldValue: (target: Thing, name: string) => unknown;
 }): LayoutMaps {
   return useMemo(() => {
@@ -73,5 +75,5 @@ export function useThingLayouts({
         })
       ),
     };
-  }, [things, fieldValue]);
+  }, [thing, things, fieldValue]);
 }

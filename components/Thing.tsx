@@ -4,22 +4,22 @@
 import { Runtime } from "@/lib/objax/runtime";
 import { getField } from "@/lib/objax/runtime/get-field";
 import { Thing } from "@/lib/objax/type";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { EditorComponent } from "./Editor";
 import { getValue } from "@/lib/objax/runtime/get-value";
 import { load } from "@/lib/objax/runtime/load";
 import { rewriteFieldInCode } from "@/lib/objax/runtime/rewrite-field-in-code";
 import { Layout, LayoutMaps, useThingLayouts } from "./thing/layout";
 import { useThingInteractions } from "./thing/interactions";
+import { WORLD_OFFSET } from "./World";
 
 export function ThingComponent({
   things,
   thing,
   runtime,
   onLiveUpdate,
-  layoutMaps,
   scrollContainer,
-  worldOffset = 0,
+  worldOffset = { x: 0, y: 0 },
   highlighted = false,
 }: {
   things: Thing[];
@@ -28,7 +28,7 @@ export function ThingComponent({
   onLiveUpdate?: (payload: any) => void;
   layoutMaps?: LayoutMaps;
   scrollContainer?: HTMLDivElement | null;
-  worldOffset?: number;
+  worldOffset?: { x: number; y: number };
   highlighted?: boolean;
 }) {
   const [editor, setEditor] = useState(false);
@@ -59,8 +59,8 @@ export function ThingComponent({
     [fieldValue, thing]
   );
   const text = String(v("text") ?? "");
-  const layouts = useThingLayouts({ things, fieldValue });
-  const layout = useMemo<Layout>(() => {
+  const layouts = useThingLayouts({ thing, things, fieldValue });
+  const layout = (() => {
     return (
       layouts.byId.get(thing.id) ?? {
         x: Number(v("x") ?? 0),
@@ -70,7 +70,7 @@ export function ThingComponent({
         depth: 0,
       }
     );
-  }, [layouts, thing.id, v]);
+  })();
   const parentLayout = layout.parentName
     ? layouts.byName.get(layout.parentName)
     : undefined;
@@ -128,6 +128,7 @@ export function ThingComponent({
         runtime={runtime}
         editor={editor}
         setEditor={setEditor}
+        worldOffset={worldOffset}
       />
       {isVisible && (
         <div
@@ -144,8 +145,8 @@ export function ThingComponent({
           style={{
             height: `${v("height")}px`,
             width: `${v("width")}px`,
-            left: `${layout.x + worldOffset}px`,
-            top: `${layout.y + worldOffset}px`,
+            left: `${layout.x + worldOffset.x + WORLD_OFFSET}px`,
+            top: `${layout.y + worldOffset.y + WORLD_OFFSET}px`,
             zIndex: 100 + (layout.depth ?? 0),
             opacity: mounted ? 1 : 0,
             transition: "opacity 200ms ease-out",

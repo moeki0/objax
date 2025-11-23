@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { ThingComponent } from "./Thing";
 import { useWorld } from "./hooks/useWorld";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -16,11 +17,16 @@ import { useThingLayouts } from "./thing/layout";
 import { Thing } from "@/lib/objax/type";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import Fuse from "fuse.js";
+import { FiSettings } from "react-icons/fi";
 
-const WORLD_SIZE = 100000;
-const WORLD_OFFSET = WORLD_SIZE / 2;
+const VIEW_SIZE = 5000;
+const WORLD_SIZE = VIEW_SIZE;
+export const WORLD_OFFSET = WORLD_SIZE / 2;
+const SHIFT_STEP = 2000;
+const EDGE_THRESHOLD = 400;
 
 export function WorldComponent() {
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [init, setInit] = useState<World | null>(null);
   const channelRef = useRef<any>(null);
   const connIdRef = useRef<string | null>(null);
@@ -31,11 +37,25 @@ export function WorldComponent() {
   const [search, setSearch] = useState("");
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const runtime = useWorld({ init });
+  const renderOffset = {
+    x: offset.x,
+    y: offset.y,
+  };
   useHotkeys("ctrl+n", () => {
     const el = scrollRef.current;
     if (runtime && el) {
-      const x = el.scrollLeft + window.innerWidth / 2 - 50000 - 50;
-      const y = el.scrollTop + window.innerHeight / 2 - 50000 - 50;
+      const x =
+        el.scrollLeft +
+        window.innerWidth / 2 +
+        renderOffset.x -
+        50 -
+        WORLD_OFFSET;
+      const y =
+        el.scrollTop +
+        window.innerHeight / 2 +
+        renderOffset.y -
+        50 -
+        WORLD_OFFSET;
       runtime.add({ input: { x, y } });
     } else {
       runtime?.add({});
@@ -118,6 +138,50 @@ export function WorldComponent() {
     [publishRealtime]
   );
 
+  const shiftViewportIfNeeded = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearLeft = el.scrollLeft < EDGE_THRESHOLD;
+    const nearRight =
+      el.scrollLeft > el.scrollWidth - el.clientWidth - EDGE_THRESHOLD;
+    const nearTop = el.scrollTop < EDGE_THRESHOLD;
+    const nearBottom =
+      el.scrollTop > el.scrollHeight - el.clientHeight - EDGE_THRESHOLD;
+
+    let dx = 0;
+    let dy = 0;
+    if (nearLeft) dx = -SHIFT_STEP;
+    else if (nearRight) dx = SHIFT_STEP;
+    if (nearTop) dy = -SHIFT_STEP;
+    else if (nearBottom) dy = SHIFT_STEP;
+
+    if (dx !== 0 || dy !== 0) {
+      setOffset((prev) => {
+        return { x: prev.x + dx * 2, y: prev.y + dy * 2 };
+      });
+      requestAnimationFrame(() => {
+        if (!scrollRef.current) return;
+        const el2 = scrollRef.current;
+        const maxX =
+          dx === 0
+            ? el.scrollLeft
+            : dx < 0
+            ? el.scrollWidth - EDGE_THRESHOLD - el.clientWidth
+            : EDGE_THRESHOLD;
+        const maxY =
+          dy === 0
+            ? el.scrollTop
+            : dy < 0
+            ? el.scrollHeight - EDGE_THRESHOLD - el.clientHeight
+            : EDGE_THRESHOLD;
+        el2.scrollTo({
+          left: maxX,
+          top: maxY,
+        });
+      });
+    }
+  }, [offset]);
+
   useEffect(() => {
     const request = async () => {
       const res = await fetch(`/api/things`);
@@ -142,10 +206,11 @@ export function WorldComponent() {
 
   const fieldValue = useCallback(
     (target: Thing, name: string) => {
-      return getValue(
+      const e = getValue(
         world?.things ?? [],
         getField(world?.things ?? [], target.name, name)?.value as any
       );
+      return e;
     },
     [world?.things]
   );
@@ -161,10 +226,12 @@ export function WorldComponent() {
     if (!el) return world.things.map((_, i) => i);
     const buffer = 800; // 少し余裕を持って先読み
     const view = {
-      left: el.scrollLeft - WORLD_OFFSET - buffer,
-      right: el.scrollLeft - WORLD_OFFSET + el.clientWidth + buffer,
-      top: el.scrollTop - WORLD_OFFSET - buffer,
-      bottom: el.scrollTop - WORLD_OFFSET + el.clientHeight + buffer,
+      left: el.scrollLeft - renderOffset.x - buffer - WORLD_OFFSET,
+      right:
+        el.scrollLeft - renderOffset.x + el.clientWidth + buffer - WORLD_OFFSET,
+      top: el.scrollTop - renderOffset.y - buffer - WORLD_OFFSET,
+      bottom:
+        el.scrollTop - renderOffset.y + el.clientHeight + buffer - WORLD_OFFSET,
     };
     return world.things.reduce((acc: number[], thing, idx) => {
       const layout = layouts.byId.get(thing.id);
@@ -195,8 +262,8 @@ export function WorldComponent() {
     return virtualItems.map((item) => world.things[item.index]).filter(Boolean);
   }, [virtualItems, world]);
 
-  const worldWidth = world?.width ?? WORLD_SIZE;
-  const worldHeight = world?.height ?? WORLD_SIZE;
+  const worldWidth = WORLD_SIZE;
+  const worldHeight = WORLD_SIZE;
 
   const fuse = useMemo(() => {
     if (!world?.things) return null;
@@ -244,12 +311,12 @@ export function WorldComponent() {
       const y = layout?.y ?? fallbackY;
       const width = layout?.width ?? 100;
       const height = layout?.height ?? 100;
-      const targetX = x + WORLD_OFFSET + width / 2 - el.clientWidth / 2;
-      const targetY = y + WORLD_OFFSET + height / 2 - el.clientHeight / 2;
+      const targetX = x + renderOffset.x + width / 2 - el.clientWidth / 2;
+      const targetY = y + renderOffset.y + height / 2 - el.clientHeight / 2;
       el.scrollTo({ left: targetX, top: targetY, behavior: "smooth" });
       setHighlightId(thing.id);
     },
-    [layouts, world?.things]
+    [layouts, world?.things, renderOffset.x, renderOffset.y]
   );
 
   useEffect(() => {
@@ -362,9 +429,18 @@ export function WorldComponent() {
           </div>
         )}
       </div>
+      <div className="fixed top-4 right-4 z-1000">
+        <Link
+          href="/settings"
+          className="inline-flex items-center gap-2 rounded-full hover:bg-gray-100 px-3 py-3 text-sm  transition-colors"
+        >
+          <FiSettings />
+        </Link>
+      </div>
       <div
         ref={scrollRef}
         className="scroller w-screen h-screen overflow-auto bg-white"
+        onScroll={shiftViewportIfNeeded}
       >
         <div
           className="relative"
@@ -384,12 +460,12 @@ export function WorldComponent() {
               onLiveUpdate={sendLiveUpdate}
               layoutMaps={layouts}
               scrollContainer={scrollRef.current}
-              worldOffset={WORLD_OFFSET}
+              worldOffset={renderOffset}
               highlighted={highlightId === thing.id}
             />
           ))}
         </div>
-        <Footer />
+        <Footer worldOffset={renderOffset} />
       </div>
     </>
   );

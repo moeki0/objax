@@ -140,8 +140,6 @@ export type ValueType =
 export interface Thing {
   id: string;
   code: string;
-  x: number;
-  y: number;
   name: string;
   users: any[];
   sticky?: string;

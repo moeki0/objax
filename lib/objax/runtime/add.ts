@@ -13,7 +13,7 @@ export function add({
   input,
 }: {
   things: Thing[];
-  input?: Partial<Thing>;
+  input?: Partial<Thing> & { x: number; y: number };
 }) {
   const name = uniqueNamesGenerator({
     dictionaries: [adjectives, colors, animals],
@@ -38,9 +38,6 @@ styleBorderRadius is "10px"
     id: generateCoolId(),
     code,
     users: [],
-    x,
-    y,
     ...load(code),
-    ...input,
   });
 }

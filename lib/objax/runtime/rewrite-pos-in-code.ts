@@ -1,3 +1,5 @@
+import { rewriteValueInCode } from "./rewrite-value-in-code";
+
 export function rewritePosInCode({
   code,
   x,
@@ -8,15 +10,7 @@ export function rewritePosInCode({
   y: number;
 }) {
   let newCode = code;
-  if (newCode.match(/x is -?\d+/)) {
-    newCode = newCode.replace(/x is -?\d+/, `x is ${x}`);
-  } else {
-    newCode = newCode + "\n" + `x is ${x}`;
-  }
-  if (newCode.match(/y is -?\d+/)) {
-    newCode = newCode.replace(/y is -?\d+/, `y is ${y}`);
-  } else {
-    newCode = newCode + "\n" + `y is ${y}`;
-  }
+  newCode = rewriteValueInCode({ code: newCode, field: "x", value: x });
+  newCode = rewriteValueInCode({ code: newCode, field: "y", value: y });
   return newCode;
 }

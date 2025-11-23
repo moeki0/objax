@@ -46,7 +46,7 @@ export function transition({
       value: states[next],
     });
     const loaded = load(newCode);
-    things[idx] = {
+    things[index] = {
       ...targetThing,
       ...loaded,
       code: newCode,
