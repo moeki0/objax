@@ -233,7 +233,6 @@ export function WorldComponent() {
       bottom:
         el.scrollTop + renderOffset.y + el.clientHeight + buffer - WORLD_OFFSET,
     };
-    console.log(view);
     return world.things.reduce((acc: number[], thing, idx) => {
       const layout = layouts.byId.get(thing.id);
       if (!layout) {
@@ -268,7 +267,7 @@ export function WorldComponent() {
 
   const fuse = useMemo(() => {
     if (!world?.things) return null;
-    return new Fuse(world.things, {
+    return new Fuse(world?.things, {
       keys: ["name"],
       threshold: 0.3,
       ignoreLocation: true,
@@ -312,8 +311,11 @@ export function WorldComponent() {
       const y = layout?.y ?? fallbackY;
       const width = layout?.width ?? 100;
       const height = layout?.height ?? 100;
-      const targetX = x + renderOffset.x + width / 2 - el.clientWidth / 2;
-      const targetY = y + renderOffset.y + height / 2 - el.clientHeight / 2;
+      const targetX =
+        x + renderOffset.x + width / 2 + WORLD_OFFSET - window.innerWidth / 2;
+      const targetY =
+        y + renderOffset.y + height / 2 + WORLD_OFFSET - window.innerHeight / 2;
+      console.log(targetX);
       el.scrollTo({ left: targetX, top: targetY, behavior: "smooth" });
       setHighlightId(thing.id);
     },
