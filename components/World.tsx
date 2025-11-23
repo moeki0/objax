@@ -224,15 +224,16 @@ export function WorldComponent() {
     if (!world) return [];
     const el = scrollRef.current;
     if (!el) return world.things.map((_, i) => i);
-    const buffer = 800; // 少し余裕を持って先読み
+    const buffer = 800;
     const view = {
-      left: el.scrollLeft - renderOffset.x - buffer - WORLD_OFFSET,
+      left: el.scrollLeft + renderOffset.x - buffer - WORLD_OFFSET,
       right:
-        el.scrollLeft - renderOffset.x + el.clientWidth + buffer - WORLD_OFFSET,
-      top: el.scrollTop - renderOffset.y - buffer - WORLD_OFFSET,
+        el.scrollLeft + renderOffset.x + el.clientWidth + buffer - WORLD_OFFSET,
+      top: el.scrollTop + renderOffset.y - buffer - WORLD_OFFSET,
       bottom:
-        el.scrollTop - renderOffset.y + el.clientHeight + buffer - WORLD_OFFSET,
+        el.scrollTop + renderOffset.y + el.clientHeight + buffer - WORLD_OFFSET,
     };
+    console.log(view);
     return world.things.reduce((acc: number[], thing, idx) => {
       const layout = layouts.byId.get(thing.id);
       if (!layout) {
@@ -246,7 +247,7 @@ export function WorldComponent() {
       if (horizontal && vertical) acc.push(idx);
       return acc;
     }, []);
-  }, [world, layouts]);
+  }, [world, layouts, renderOffset]);
 
   const virtualizer = useVirtualizer({
     count: world?.things.length ?? 0,
