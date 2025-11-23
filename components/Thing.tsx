@@ -130,7 +130,7 @@ export function ThingComponent({
         setEditor={setEditor}
         worldOffset={worldOffset}
       />
-      {isVisible && (
+      {isVisible && !highlighted && (
         <div
           onPointerDown={handlePointerDown}
           className="absolute cursor-default"
