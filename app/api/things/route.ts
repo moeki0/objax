@@ -26,13 +26,10 @@ export async function GET(req: Request) {
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
     const things = items.map((row) => {
-      const loaded = load(row.code);
       return {
         id: row.id,
         code: row.code,
-        users: row.users ?? [],
-        ...loaded,
-      } as Thing & { users?: any[] };
+      } as Thing;
     });
     const nextCursor = hasMore ? String(start + limit) : null;
     return NextResponse.json({

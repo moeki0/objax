@@ -15,6 +15,7 @@ import { getValue } from "@/lib/objax/runtime/get-value";
 import { useThingLayouts } from "./thing/layout";
 import { Thing } from "@/lib/objax/type";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import Fuse from "fuse.js";
 
 const WORLD_SIZE = 100000;
 const WORLD_OFFSET = WORLD_SIZE / 2;
@@ -27,13 +28,14 @@ export function WorldComponent() {
   const liveBufferRef = useRef<Map<string, any>>(new Map());
   const liveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [search, setSearch] = useState("");
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const runtime = useWorld({ init });
   useHotkeys("ctrl+n", () => {
     const el = scrollRef.current;
     if (runtime && el) {
       const x = el.scrollLeft + window.innerWidth / 2 - 50000 - 50;
       const y = el.scrollTop + window.innerHeight / 2 - 50000 - 50;
-      console.log(x);
       runtime.add({ input: { x, y } });
     } else {
       runtime?.add({});
@@ -196,6 +198,60 @@ export function WorldComponent() {
   const worldWidth = world?.width ?? WORLD_SIZE;
   const worldHeight = world?.height ?? WORLD_SIZE;
 
+  const fuse = useMemo(() => {
+    if (!world?.things) return null;
+    return new Fuse(world.things, {
+      keys: ["name"],
+      threshold: 0.3,
+      ignoreLocation: true,
+    });
+  }, [world?.things]);
+
+  const searchResults = useMemo(() => {
+    if (!fuse) return [];
+    const q = search.trim();
+    if (!q) {
+      setHighlightId(null);
+      return [];
+    }
+    const r = fuse
+      .search(q)
+      .slice(0, 10)
+      .map((r) => r.item);
+    return r;
+  }, [fuse, search]);
+
+  const scrollToThing = useCallback(
+    (thing: Thing) => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const layout = layouts.byId.get(thing.id);
+      const fallbackX =
+        Number(
+          getValue(
+            world?.things ?? [],
+            getField(world?.things ?? [], thing.name, "x")?.value as any
+          )
+        ) ?? 0;
+      const fallbackY =
+        Number(
+          getValue(
+            world?.things ?? [],
+            getField(world?.things ?? [], thing.name, "y")?.value as any
+          )
+        ) ?? 0;
+      const x = layout?.x ?? fallbackX;
+      const y = layout?.y ?? fallbackY;
+      const width = layout?.width ?? 100;
+      const height = layout?.height ?? 100;
+      const targetX = x + WORLD_OFFSET + width / 2 - el.clientWidth / 2;
+      const targetY = y + WORLD_OFFSET + height / 2 - el.clientHeight / 2;
+      el.scrollTo({ left: targetX, top: targetY, behavior: "smooth" });
+      setHighlightId(thing.id);
+    },
+    [layouts, world?.things]
+  );
+
   useEffect(() => {
     if (!runtime) return;
     let mounted = true;
@@ -284,33 +340,57 @@ export function WorldComponent() {
   }
 
   return (
-    <div
-      ref={scrollRef}
-      className="scroller w-screen h-screen overflow-auto bg-white"
-    >
-      <div
-        className="relative"
-        style={{
-          width: worldWidth,
-          height: worldHeight,
-          minWidth: worldWidth,
-          minHeight: worldHeight,
-        }}
-      >
-        {visibleThings.map((thing) => (
-          <ThingComponent
-            key={thing.id}
-            thing={thing}
-            things={world.things}
-            runtime={runtime}
-            onLiveUpdate={sendLiveUpdate}
-            layoutMaps={layouts}
-            scrollContainer={scrollRef.current}
-            worldOffset={WORLD_OFFSET}
-          />
-        ))}
+    <>
+      <div className="fixed top-3 left-1/2 -translate-x-1/2 z-1000 px-3 py-2 space-y-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name"
+          className="w-full border border-gray-300 rounded bg-white shadow px-2 py-1 text-sm outline-none focus:border-blue-500"
+        />
+        {searchResults.length > 0 && (
+          <div className="max-h-64 overflow-auto bg-white border border-gray-200 shadow rounded divide-y divide-gray-100">
+            {searchResults.map((thing) => (
+              <button
+                key={thing.id}
+                onClick={() => scrollToThing(thing)}
+                className="w-full text-left px-2 py-1 text-sm hover:bg-blue-50"
+              >
+                {thing.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <Footer />
-    </div>
+      <div
+        ref={scrollRef}
+        className="scroller w-screen h-screen overflow-auto bg-white"
+      >
+        <div
+          className="relative"
+          style={{
+            width: worldWidth,
+            height: worldHeight,
+            minWidth: worldWidth,
+            minHeight: worldHeight,
+          }}
+        >
+          {visibleThings.map((thing) => (
+            <ThingComponent
+              key={thing.id}
+              thing={thing}
+              things={world.things}
+              runtime={runtime}
+              onLiveUpdate={sendLiveUpdate}
+              layoutMaps={layouts}
+              scrollContainer={scrollRef.current}
+              worldOffset={WORLD_OFFSET}
+              highlighted={highlightId === thing.id}
+            />
+          ))}
+        </div>
+        <Footer />
+      </div>
+    </>
   );
 }

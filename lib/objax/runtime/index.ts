@@ -28,7 +28,11 @@ export function runtime({ world }: { world: World }): Runtime {
     world,
     start: () => {
       world.things = world.things.map((t) => {
-        return { ...t, ...load(t.code) };
+        try {
+          return { ...t, ...load(t.code) };
+        } catch {
+          return { ...t };
+        }
       });
       setInterval(() => render({ world, listeners }), INTERVAL);
     },

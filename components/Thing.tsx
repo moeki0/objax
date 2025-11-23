@@ -20,6 +20,7 @@ export function ThingComponent({
   layoutMaps,
   scrollContainer,
   worldOffset = 0,
+  highlighted = false,
 }: {
   things: Thing[];
   thing: Thing;
@@ -28,6 +29,7 @@ export function ThingComponent({
   layoutMaps?: LayoutMaps;
   scrollContainer?: HTMLDivElement | null;
   worldOffset?: number;
+  highlighted?: boolean;
 }) {
   const [editor, setEditor] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -146,6 +148,8 @@ export function ThingComponent({
             zIndex: 100 + (layout.depth ?? 0),
             opacity: mounted ? 1 : 0,
             transition: "opacity 200ms ease-out",
+            outline: highlighted ? "2px dashed #2563eb" : undefined,
+            outlineOffset: highlighted ? "2px" : undefined,
             ...style(),
           }}
         >
