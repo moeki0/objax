@@ -1,10 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { db, migrationsReady, things as thingsTable } from "@/lib/db/client";
 import { desc } from "drizzle-orm";
 import { load } from "@/lib/objax/runtime/load";
 
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions as any).catch(() => null);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     await migrationsReady;
     const rows = await db
       .select()
@@ -29,9 +37,6 @@ export async function GET() {
       },
     });
   } catch {
-    return new Response(JSON.stringify({ error: "Failed to export" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json({ error: "Failed to export" }, { status: 500 });
   }
 }

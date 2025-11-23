@@ -46,7 +46,7 @@ export function Footer() {
           </a>
         </div>
       </footer>
-      <Help help={help} />
+      <Help help={help} setHelp={setHelp} />
     </>
   );
 }

@@ -1,9 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getAblyRest } from "@/lib/ably/server";
 
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions as any).catch(() => null);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const rest = getAblyRest();
     const tokenRequest = await rest.auth.createTokenRequest({
       // Allow publish/subscribe on all world-scoped channels: things:<worldId>

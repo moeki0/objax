@@ -10,6 +10,12 @@ import { load } from "@/lib/objax/runtime/load";
 export async function GET(req: Request) {
   try {
     await migrationsReady;
+    const session = await getServerSession(authOptions as any).catch(
+      () => null
+    );
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { searchParams } = new URL(req.url);
     const limit = Math.min(
       parseInt(searchParams.get("limit") || "200", 10),
@@ -45,10 +51,13 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     await migrationsReady;
-    const session: { user: any } = (await getServerSession(
+    const session: { user: any } | null = (await getServerSession(
       authOptions as any
     ).catch(() => null)) as any;
-    const actor = session?.user
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const actor = session.user
       ? {
           name: (session.user as any)?.name ?? null,
           email: (session.user as any)?.email ?? null,

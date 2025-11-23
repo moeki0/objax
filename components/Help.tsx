@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
+import { IoCloseSharp } from "react-icons/io5";
 import { Rnd } from "react-rnd";
 
-export function Help({ help }: { help: boolean }) {
+export function Help({
+  help,
+  setHelp,
+}: {
+  help: boolean;
+  setHelp: (help: boolean) => void;
+}) {
   const [pos, setPos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -37,7 +44,14 @@ export function Help({ help }: { help: boolean }) {
       draggablehandle=".header"
       className="border border-gray-300 shadow-xl rounded z-9999 bg-white"
     >
-      <div className="header h-7 w-full bg-gray-50 border-b border-gray-300"></div>
+      <div className="header h-7 w-full bg-gray-50 text-gray-500 px-1 rounded border-b border-gray-300 flex items-center">
+        <button
+          onClick={() => setHelp(false)}
+          className="border border-gray-300 bg-white p-px"
+        >
+          <IoCloseSharp />
+        </button>
+      </div>
       <div className="p-3 overflow-scroll h-[calc(100%-30px)]">
         <pre className="break-all text-wrap text-xs">
           {`# Basics (name is required)
