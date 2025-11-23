@@ -28,7 +28,7 @@ export default function SettingsPage() {
         <h1 className="text-3xl font-bold">Settings</h1>
       </header>
 
-      <section className="space-y-3 rounded border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="space-y-3 bg-white py-2">
         <h2 className="text-lg font-semibold">Contact</h2>
         <p className="text-sm text-gray-600">
           Email us with questions or feedback.
@@ -42,11 +42,8 @@ export default function SettingsPage() {
         </a>
       </section>
 
-      <section className="space-y-3 rounded border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="space-y-3 bg-white py-2">
         <h2 className="text-lg font-semibold">Logout</h2>
-        <p className="text-sm text-gray-600">
-          Sign out of your account on this device.
-        </p>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
@@ -55,14 +52,11 @@ export default function SettingsPage() {
         </button>
       </section>
 
-      <section className="space-y-3 rounded border border-red-200 bg-white p-4 shadow-sm">
+      <section className="space-y-3  py-2">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-red-700">Delete account</h2>
         </div>
-        <p className="text-sm text-gray-700">
-          Request permanent deletion of your account and related data. This
-          action cannot be undone.
-        </p>
+        <p className="text-sm text-gray-700">This action cannot be undone.</p>
         <button
           onClick={handleDeleteAccount}
           className="inline-flex items-center justify-center rounded-md border border-red-400 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"

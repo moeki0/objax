@@ -411,33 +411,35 @@ export function WorldComponent() {
 
   return (
     <>
-      <div className="fixed top-3 left-1/2 -translate-x-1/2 z-1000 px-3 py-2 space-y-2">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search"
-          className="w-full border border-gray-300 rounded-full bg-white px-4 min-w-80 py-2 text-sm outline-none focus:border-blue-500"
-        />
-        {searchResults.length > 0 && (
-          <div className="max-h-64 overflow-auto bg-white border border-gray-200 shadow rounded divide-y divide-gray-100">
-            {searchResults.map((thing) => (
-              <button
-                key={thing.id}
-                onClick={() => scrollToThing(thing)}
-                className="w-full text-left px-2 py-1 text-sm hover:bg-blue-50"
-              >
-                {thing.name}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="fixed top-4 right-4 z-1000">
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 z-1000 px-3 space-y-2 w-screen gap-4 flex items-center">
+        <div className="grow"></div>
+        <div>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search"
+            className="mt-2 w-full border border-gray-300 rounded-full bg-white px-4 min-w-60 py-2 text-sm outline-none focus:border-blue-500"
+          />
+          {searchResults.length > 0 && (
+            <div className="max-h-64 overflow-auto bg-white border border-gray-200 shadow rounded divide-y divide-gray-100">
+              {searchResults.map((thing) => (
+                <button
+                  key={thing.id}
+                  onClick={() => scrollToThing(thing)}
+                  className="w-full text-left px-2 py-1 text-sm hover:bg-blue-50"
+                >
+                  {thing.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="grow"></div>
         <Link
           href="/settings"
-          className="inline-flex items-center gap-2 rounded-full hover:bg-gray-100 px-3 py-3 text-sm  transition-colors"
+          className="items-center gap-2 rounded-full hover:bg-gray-100 px-3 py-3  transition-colors"
         >
-          <FiSettings />
+          <FiSettings width={20} height={20} />
         </Link>
       </div>
       <div
