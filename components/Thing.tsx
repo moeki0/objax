@@ -21,10 +21,12 @@ export function ThingComponent({
   scrollContainer,
   worldOffset = { x: 0, y: 0 },
   highlighted = false,
+  visibleThings,
 }: {
   things: Thing[];
   thing: Thing;
   runtime: Runtime;
+  visibleThings: Thing[];
   onLiveUpdate?: (payload: any) => void;
   layoutMaps?: LayoutMaps;
   scrollContainer?: HTMLDivElement | null;
@@ -156,7 +158,7 @@ export function ThingComponent({
         setEditor={setEditor}
         worldOffset={worldOffset}
       />
-      {(isVisible || highlighted) && (
+      {(isVisible || highlighted) && visibleThings.includes(thing) && (
         <div
           onPointerDown={handlePointerDown}
           className="absolute cursor-default flex items-center justify-center"

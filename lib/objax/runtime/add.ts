@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { generateCoolId } from "@/lib/utils/generate-cool-id";
 import { Thing } from "../type";
 import {
@@ -11,9 +12,17 @@ import { load } from "./load";
 export function add({
   things,
   input,
+  ou,
 }: {
   things: Thing[];
   input?: Partial<Thing> & { x: number; y: number };
+  ou: ({
+    upserts,
+    deletes,
+  }: {
+    upserts: any[];
+    deletes: any[];
+  }) => Promise<void>;
 }) {
   const name = uniqueNamesGenerator({
     dictionaries: [adjectives, colors, animals],
@@ -34,10 +43,13 @@ styleBorder is "1px solid #ddd"
 styleBorderRadius is "10px"
 `;
 
-  things.push({
+  const t = {
     id: generateCoolId(),
     code,
     users: [],
     ...load(code),
-  });
+  };
+  things.push(t);
+
+  ou({ upserts: [t], deletes: [] });
 }

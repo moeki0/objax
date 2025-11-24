@@ -61,6 +61,7 @@ export function runtime({ world }: { world: World }): Runtime {
     update: ({ id, input }) => {
       world.things = world.things.map((t) => {
         if (t.id === id) {
+          ou({ upserts: [{ ...t, ...input }], deletes: [] });
           return { ...t, ...input };
         }
         return t;
@@ -83,6 +84,6 @@ export function runtime({ world }: { world: World }): Runtime {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    add: ({ input }) => add({ input, things: world.things }),
+    add: ({ input }) => add({ input, things: world.things, ou }),
   };
 }

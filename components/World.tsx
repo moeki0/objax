@@ -460,11 +460,12 @@ export function WorldComponent() {
             minHeight: worldHeight,
           }}
         >
-          {visibleThings.map((thing) => (
+          {world.things.map((thing) => (
             <ThingComponent
               key={thing.id}
               thing={thing}
               things={world.things}
+              visibleThings={visibleThings}
               runtime={runtime}
               onLiveUpdate={sendLiveUpdate}
               layoutMaps={layouts}
