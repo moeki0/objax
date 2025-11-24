@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Thing } from "@/lib/objax/type";
+import { getValue } from "@/lib/objax/runtime/get-value";
 
 export type Layout = {
   x: number;
@@ -29,6 +30,17 @@ export function useThingLayouts({
     const byName = new Map<string, Thing>();
     things.forEach((t) => byName.set(t.name, t));
 
+    const parentNameOf = (t: Thing) => {
+      if (t.parent) return t.parent;
+      if (t.parentExpr) {
+        const val = getValue(things, t.parentExpr);
+        if (typeof val === "string") return val;
+      }
+      const val = fieldValue(t, "parent");
+      if (typeof val === "string") return val;
+      return undefined;
+    };
+
     const visit = (t: Thing, depth = 0, stack = new Set<string>()): Layout => {
       if (byId.has(t.id)) return byId.get(t.id)!;
       if (stack.has(t.id)) {
@@ -45,7 +57,8 @@ export function useThingLayouts({
       const rawY = Number(fieldValue(t, "y") ?? 0);
       const width = Number(fieldValue(t, "width") ?? 0);
       const height = Number(fieldValue(t, "height") ?? 0);
-      const parent = t.sticky ? byName.get(t.sticky) : undefined;
+      const parentName = parentNameOf(t);
+      const parent = parentName ? byName.get(parentName) : undefined;
       if (parent) {
         const p = visit(parent, depth + 1, stack);
         const value = {

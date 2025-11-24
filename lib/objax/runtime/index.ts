@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Name, Thing } from "../type";
 import { action } from "./action";
 import { add } from "./add";
@@ -12,7 +13,17 @@ export const INTERVAL = 1000 / FPS;
 
 export interface Runtime {
   world: World;
-  start: () => void;
+  start: ({
+    onUpdate,
+  }: {
+    onUpdate: ({
+      upserts,
+      deletes,
+    }: {
+      upserts: any[];
+      deletes: any[];
+    }) => Promise<void>;
+  }) => void;
   handle: ({ thing, event }: { thing: Thing; event: string }) => void;
   update: ({ id, input }: { id: string; input: Partial<Thing> }) => void;
   subscribe: (listener: Listener) => void;
@@ -27,9 +38,16 @@ export type Listener = () => void;
 const listeners = new Set<Listener>();
 
 export function runtime({ world }: { world: World }): Runtime {
+  let ou: ({
+    upserts,
+    deletes,
+  }: {
+    upserts: any[];
+    deletes: any[];
+  }) => Promise<void>;
   return {
     world,
-    start: () => {
+    start: ({ onUpdate }) => {
       world.things = world.things.map((t) => {
         try {
           return { ...t, ...load(t.code) };
@@ -37,7 +55,8 @@ export function runtime({ world }: { world: World }): Runtime {
           return { ...t };
         }
       });
-      setInterval(() => render({ world, listeners }), INTERVAL);
+      ou = onUpdate;
+      setInterval(() => render({ world, listeners, onUpdate }), INTERVAL);
     },
     update: ({ id, input }) => {
       world.things = world.things.map((t) => {
@@ -56,14 +75,8 @@ export function runtime({ world }: { world: World }): Runtime {
       );
       for (const ea of eas) {
         action({ things: world.things, ea });
-        const t = getTransition(
-          world.things,
-          (ea.transition.path[0] as Name).name,
-          (ea.transition.path[1] as Name).name
-        );
-        if (t) {
-          transition({ things: world.things, transition: t });
-        }
+        const t = world.things.find((tg) => tg.id === thing.id);
+        ou({ upserts: [t], deletes: [] });
       }
     },
     subscribe: (listener) => {

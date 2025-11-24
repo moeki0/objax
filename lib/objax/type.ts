@@ -30,6 +30,7 @@ export interface EventActionType {
   type: "EventAction";
   name: Name;
   transition: FieldValueType;
+  guard?: ValueType;
 }
 
 export interface TransitionType {
@@ -121,6 +122,11 @@ export interface FunctionCallType {
   args: ValueType[];
 }
 
+export interface NameLiteral {
+  type: "NameLiteral";
+  value: string;
+}
+
 export type ValueType =
   | BooleanType
   | StringType
@@ -135,14 +141,17 @@ export type ValueType =
   | NotType
   | ItType
   | ConstantType
-  | FunctionCallType;
+  | FunctionCallType
+  | NameLiteral;
 
 export interface Thing {
   id: string;
   code: string;
   name: string;
   users: any[];
-  sticky?: string;
+  worldId?: string;
+  parent?: string;
+  parentExpr?: ValueType;
   duplicate?: Duplicate;
   eventActions?: EventActionType[];
   transitions?: TransitionType[];

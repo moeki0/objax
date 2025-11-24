@@ -4,6 +4,7 @@ import {
   FieldValueType,
   IntegerType,
   Name,
+  NameLiteral,
   Thing,
   ValueType,
 } from "../type";
@@ -14,7 +15,7 @@ export function getValue(
   t: ValueType,
   it?: FieldValueType
 ): unknown {
-  if (t === undefined) {
+  if (t === undefined || t === null) {
     return;
   }
   if (!t.type) {
@@ -120,6 +121,8 @@ export function getValue(
   } else if (t.type === "Constant") {
     if (t.value === "pi") return Math.PI;
     if (t.value === "e") return Math.E;
+  } else if ((t as NameLiteral).type === "NameLiteral") {
+    return (t as NameLiteral).value;
   } else if (t.type === "Reference") {
     // Built-in Time namespace support
     const ns = (t.path[0] as Name | undefined)?.name;

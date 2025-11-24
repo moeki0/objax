@@ -99,15 +99,41 @@ export function ThingComponent({
     if (!str) return str;
     return str[0].toLowerCase() + str.slice(1);
   };
-  const style = () => {
-    const styleFields =
-      thing.fields?.filter((f) => f.name.name.match(/^style.+/)) || [];
-    const s: Record<string, string> = {};
-    for (const f of styleFields) {
-      s[lowerFirst(f.name.name.replace(/^style/, ""))] = v(f.name.name);
-    }
-    return s;
+
+  const styleValue = (target: Thing, name: string) => {
+    const field = getField(things, target.name, name);
+    return field ? getValue(things, field.value as any) : undefined;
   };
+
+  const buildStyle = (
+    target: Thing,
+    seen = new Set<string>()
+  ): Record<string, string> => {
+    if (seen.has(target.id)) return {};
+    seen.add(target.id);
+
+    let base: Record<string, string> = {};
+    const ref = styleValue(target, "styleRef");
+    if (typeof ref === "string") {
+      const refThing = things.find((t) => t.name === ref);
+      if (refThing) {
+        base = buildStyle(refThing, seen);
+      }
+    }
+
+    const styleFields =
+      target.fields?.filter((f) => f.name.name.match(/^style.+/)) || [];
+    const selfStyle: Record<string, string> = {};
+    for (const f of styleFields) {
+      selfStyle[lowerFirst(f.name.name.replace(/^style/, ""))] = styleValue(
+        target,
+        f.name.name
+      ) as string;
+    }
+    return { ...base, ...selfStyle };
+  };
+
+  const style = () => buildStyle(thing);
 
   const [editing, setEditing] = useState(text);
 
@@ -133,11 +159,12 @@ export function ThingComponent({
       {(isVisible || highlighted) && (
         <div
           onPointerDown={handlePointerDown}
-          className="absolute cursor-default"
+          className="absolute cursor-default flex items-center justify-center"
           onClick={(e) => {
-            runtime.handle({ thing, event: "click" });
             if (e.metaKey) {
               setEditor(!editor);
+            } else {
+              runtime.handle({ thing, event: "click" });
             }
           }}
           onMouseEnter={() => runtime.handle({ thing, event: "mouseEnter" })}
@@ -145,8 +172,8 @@ export function ThingComponent({
           style={{
             height: `${v("height")}px`,
             width: `${v("width")}px`,
-            left: `${layout.x + WORLD_OFFSET}px`,
-            top: `${layout.y + WORLD_OFFSET}px`,
+            left: `${layout.x + WORLD_OFFSET - worldOffset.x}px`,
+            top: `${layout.y + WORLD_OFFSET - worldOffset.y}px`,
             zIndex: 100 + (layout.depth ?? 0),
             opacity: mounted ? 1 : 0,
             transition: "opacity 200ms ease-out",

@@ -26,12 +26,12 @@ describe("load", () => {
     ]);
   });
 
-  it("stickyとduplicateを保持する", () => {
+  it("parentとduplicateを保持する", () => {
     const result = load(
-      lines("name is Bravo", "sticky pinned", "duplicate twin")
+      lines("name is Bravo", "parent is pinned", "duplicate twin")
     );
 
-    expect(result.sticky).toBe("pinned");
+    expect(result.parent).toBe("pinned");
     expect(result.duplicate).toEqual({
       type: "Duplicate",
       name: { type: "Name", name: "twin" },
@@ -142,10 +142,10 @@ describe("load", () => {
     expect(result.name).toBe("First");
   });
 
-  it("stickyが無い場合はundefinedになる", () => {
+  it("parentが無い場合はundefinedになる", () => {
     const result = load(lines("name is Golf", "flag = false"));
 
-    expect(result.sticky).toBeUndefined();
+    expect(result.parent).toBeUndefined();
     expect(result.duplicate).toBeUndefined();
   });
 
@@ -209,7 +209,7 @@ describe("load", () => {
     expect(result.transitions).toEqual([]);
     expect(result.operations).toEqual([]);
     expect(result.eventActions).toEqual([]);
-    expect(result.sticky).toBeUndefined();
+    expect(result.parent).toBeUndefined();
     expect(result.duplicate).toBeUndefined();
   });
 
@@ -282,18 +282,18 @@ describe("load", () => {
     expect(result.eventActions[0].name.name).toBe("click");
   });
 
-  it("複数のsticky/duplicateは最初の宣言を採用する", () => {
+  it("複数のparent/duplicateは最初の宣言を採用する", () => {
     const result = load(
       lines(
         "name is Stack",
-        "sticky first",
-        "sticky second",
+        "parent is first",
+        "parent is second",
         "duplicate one",
         "duplicate two"
       )
     );
 
-    expect(result.sticky).toBe("first");
+    expect(result.parent).toBe("first");
     expect(result.duplicate?.name.name).toBe("one");
   });
 

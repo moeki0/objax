@@ -9,12 +9,13 @@ import {
 
 export interface LoadedThing {
   name: string;
-  sticky: string;
+  parent?: string;
+  parentExpr?: any;
   eventActions: EventActionType[];
   transitions: TransitionType[];
   operations: OperationType[];
   fields: FieldType[];
-  duplicate: Duplicate;
+  duplicate?: Duplicate;
 }
 
 export function load(code: string): LoadedThing {
@@ -25,13 +26,19 @@ export function load(code: string): LoadedThing {
   function filter(type: string) {
     return result.filter((r: { type: string }) => r.type === type);
   }
+  const parentNode: any = (find("Parent") as any)?.value;
+  let parentName: string | undefined;
+  if (parentNode?.type === "NameLiteral") parentName = parentNode.value;
+  if (parentNode?.type === "String") parentName = parentNode.value;
+
   return {
     name: find("DefName").value.name,
     fields: filter("DefField"),
     transitions: filter("Transition"),
     eventActions: filter("EventAction"),
     operations: filter("Operation"),
-    sticky: find("Sticky")?.name.name,
+    parent: parentName,
+    parentExpr: parentNode,
     duplicate: find("Duplicate"),
   };
 }

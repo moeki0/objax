@@ -6,7 +6,7 @@ import { Thing } from "@/lib/objax/type";
 import { load } from "@/lib/objax/runtime/load";
 import { rewritePosInCode } from "@/lib/objax/runtime/rewrite-pos-in-code";
 import { rewriteSizeInCode } from "@/lib/objax/runtime/rewrite-size-in-code";
-import { rewriteStickyInCode } from "@/lib/objax/runtime/rewrite-sticky-in-code";
+import { rewriteParentInCode } from "@/lib/objax/runtime/rewrite-parent-in-code";
 import { Layout, LayoutMaps } from "./layout";
 import { WORLD_OFFSET } from "../World";
 
@@ -75,6 +75,7 @@ export function useThingInteractions({
                 ev.clientX -
                 containerRect.left -
                 startXInRect -
+                WORLD_OFFSET +
                 worldOffset.x
             ),
             y: Math.round(
@@ -82,17 +83,14 @@ export function useThingInteractions({
                 ev.clientY -
                 containerRect.top -
                 startYInRect -
+                WORLD_OFFSET +
                 worldOffset.y
             ),
           };
         }
         return {
-          x: Math.round(
-            window.scrollX + ev.clientX - startXInRect - worldOffset.x
-          ),
-          y: Math.round(
-            window.scrollY + ev.clientY - startYInRect - worldOffset.y
-          ),
+          x: Math.round(window.scrollX + ev.clientX - startXInRect),
+          y: Math.round(window.scrollY + ev.clientY - startYInRect),
         };
       };
 
@@ -103,9 +101,10 @@ export function useThingInteractions({
         lastRelRef.current = { x: relX, y: relY };
         const code = rewritePosInCode({
           code: lastCodeRef.current,
-          x: relX - WORLD_OFFSET,
-          y: relY - WORLD_OFFSET,
+          x: relX,
+          y: relY,
         });
+        console.log(lastCodeRef.current, code);
         lastCodeRef.current = code;
         const result = load(code);
         runtime.update({ id: thing.id, input: { ...result, code } });
@@ -114,20 +113,20 @@ export function useThingInteractions({
 
       const handleUp = () => {
         const absX = parentBoundsRef.current
-          ? parentBoundsRef.current.x + lastRelRef.current.x
-          : lastRelRef.current.x;
+          ? parentBoundsRef.current.x + lastRelRef.current.x - WORLD_OFFSET
+          : lastRelRef.current.x - WORLD_OFFSET;
         const absY = parentBoundsRef.current
-          ? parentBoundsRef.current.y + lastRelRef.current.y
-          : lastRelRef.current.y;
+          ? parentBoundsRef.current.y + lastRelRef.current.y - WORLD_OFFSET
+          : lastRelRef.current.y - WORLD_OFFSET;
 
         const isDescendant = (candidate: Thing) => {
           let cur: Thing | undefined = candidate;
           const seen = new Set<string>();
-          while (cur?.sticky) {
-            if (seen.has(cur.sticky)) break;
-            if (cur.sticky === thing.name) return true;
-            seen.add(cur.sticky);
-            const next = things.find((t) => t.name === cur?.sticky);
+          while (cur?.parent) {
+            if (seen.has(cur.parent)) break;
+            if (cur.parent === thing.name) return true;
+            seen.add(cur.parent);
+            const next = things.find((t) => t.name === cur?.parent);
             cur = next;
           }
           return false;
@@ -154,12 +153,12 @@ export function useThingInteractions({
         ) {
           const relX = 0;
           const relY = 0;
-          const codeWithSticky = rewriteStickyInCode({
+          const codeWithParent = rewriteParentInCode({
             code: lastCodeRef.current,
-            sticky: candidateParent.t.name,
+            parent: candidateParent.t.name,
           });
           const code = rewritePosInCode({
-            code: codeWithSticky,
+            code: codeWithParent,
             x: relX,
             y: relY,
           });
@@ -172,30 +171,6 @@ export function useThingInteractions({
           return;
         }
 
-        if (parentBoundsRef.current) {
-          const parent = parentBoundsRef.current;
-          const overlaps = !(
-            absX + layout.width < parent.x ||
-            parent.x + parent.width < absX ||
-            absY + layout.height < parent.y ||
-            parent.y + parent.height < absY
-          );
-          if (!overlaps) {
-            const codeWithoutSticky = rewriteStickyInCode({
-              code: lastCodeRef.current,
-              sticky: undefined,
-            });
-            const code = rewritePosInCode({
-              code: codeWithoutSticky,
-              x: absX,
-              y: absY,
-            });
-            lastCodeRef.current = code;
-            const result = load(code);
-            runtime.update({ id: thing.id, input: { ...result, code } });
-            onLiveUpdate?.({ id: thing.id, ...result, code });
-          }
-        }
         window.removeEventListener("pointermove", handleMove);
         window.removeEventListener("pointerup", handleUp);
       };
@@ -214,8 +189,6 @@ export function useThingInteractions({
       onLiveUpdate,
       things,
       layout.parentName,
-      layout.width,
-      layout.height,
       layouts.byId,
     ]
   );
@@ -255,7 +228,7 @@ export function useThingInteractions({
       window.addEventListener("pointermove", handleMove);
       window.addEventListener("pointerup", handleUp);
     },
-    [runtime, thing, fieldValue]
+    [runtime, thing, fieldValue, onLiveUpdate]
   );
 
   return { handlePointerDown, handleResizePointerDown };

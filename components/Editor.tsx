@@ -2,7 +2,7 @@
 "use client";
 
 import { load } from "@/lib/objax/runtime/load";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Runtime } from "@/lib/objax/runtime";
 import { Rnd } from "react-rnd";
 import Editor, { Monaco, OnChange, OnMount } from "@monaco-editor/react";
@@ -22,8 +22,13 @@ export function EditorComponent({
   setEditor: (editor: boolean) => void;
   worldOffset: { x: number; y: number };
 }) {
-  const edit = thing.code;
+  const [freeze, setFreeze] = useState(false);
+  const [currentCode, setCurrentCode] = useState(thing.code);
+  const edit = freeze ? currentCode : thing.code;
   const handleChange: OnChange = (value) => {
+    if (!freeze) {
+      setCurrentCode(value!);
+    }
     const newCode = value || "";
     try {
       const result = load(newCode);
@@ -93,12 +98,21 @@ export function EditorComponent({
       draggablehandle=".header"
       className="border border-gray-300 shadow-xl rounded overflow-hidden z-9999 bg-white"
     >
-      <div className="header h-7 w-full bg-gray-50 text-gray-500 px-1 rounded border-b border-gray-300 flex items-center">
+      <div className="header h-7 w-full bg-gray-50 text-gray-500 px-1 justify-between rounded border-b border-gray-300 flex items-center">
         <button
           onClick={() => setEditor(false)}
           className="border border-gray-300 bg-white p-px"
         >
           <IoCloseSharp />
+        </button>
+        <button
+          onClick={() => {
+            setFreeze(!freeze);
+            setCurrentCode(thing.code);
+          }}
+          className="border border-gray-300 bg-white text-xs rounded px-1"
+        >
+          Freeze code
         </button>
       </div>
       <Editor

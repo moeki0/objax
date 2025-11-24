@@ -81,7 +81,7 @@ visible is state
 state is false
 
 # Parent/child layout
-sticky ParentThing
+parent is ParentThing
 
 # Duplicate metadata
 duplicate CopyOfSomething

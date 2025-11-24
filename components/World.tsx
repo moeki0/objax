@@ -22,7 +22,7 @@ import { FiSettings } from "react-icons/fi";
 const VIEW_SIZE = 5000;
 const WORLD_SIZE = VIEW_SIZE;
 export const WORLD_OFFSET = WORLD_SIZE / 2;
-const SHIFT_STEP = 2000;
+const SHIFT_STEP = 2500;
 const EDGE_THRESHOLD = 400;
 
 export function WorldComponent() {
@@ -36,7 +36,26 @@ export function WorldComponent() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState("");
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const runtime = useWorld({ init });
+  const publishRealtime = useCallback(
+    async ({
+      upserts = [] as any[],
+      deletes = [] as string[],
+    }: { upserts?: any[]; deletes?: string[] } = {}) => {
+      try {
+        const ch = channelRef.current;
+        if (!ch) return;
+        await ch.publish("update", {
+          upserts,
+          deletes,
+          sourceConnectionId: connIdRef.current,
+        });
+      } catch (err) {
+        console.error("[ably] publish failed", err);
+      }
+    },
+    []
+  );
+  const runtime = useWorld({ init, onUpdate: publishRealtime });
   const renderOffset = {
     x: offset.x,
     y: offset.y,
@@ -61,25 +80,6 @@ export function WorldComponent() {
       runtime?.add({});
     }
   });
-  const publishRealtime = useCallback(
-    async ({
-      upserts = [] as any[],
-      deletes = [] as string[],
-    }: { upserts?: any[]; deletes?: string[] } = {}) => {
-      try {
-        const ch = channelRef.current;
-        if (!ch) return;
-        await ch.publish("update", {
-          upserts,
-          deletes,
-          sourceConnectionId: connIdRef.current,
-        });
-      } catch (err) {
-        console.error("[ably] publish failed", err);
-      }
-    },
-    []
-  );
 
   const func = useDebouncedCallback(() => {
     if (!runtime) return;
@@ -105,7 +105,6 @@ export function WorldComponent() {
     if (!upserts.length && !deleteIds.length) return;
     const save = async () => {
       try {
-        await publishRealtime({ upserts, deletes: deleteIds });
         await fetch("/api/things", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -166,14 +165,20 @@ export function WorldComponent() {
           dx === 0
             ? el.scrollLeft
             : dx < 0
-            ? el.scrollWidth - EDGE_THRESHOLD - el.clientWidth
-            : EDGE_THRESHOLD;
+            ? el.scrollWidth -
+              EDGE_THRESHOLD -
+              el.clientWidth -
+              window.innerWidth
+            : EDGE_THRESHOLD + window.innerWidth;
         const maxY =
           dy === 0
             ? el.scrollTop
             : dy < 0
-            ? el.scrollHeight - EDGE_THRESHOLD - el.clientHeight
-            : EDGE_THRESHOLD;
+            ? el.scrollHeight -
+              EDGE_THRESHOLD -
+              el.clientHeight -
+              window.innerHeight
+            : EDGE_THRESHOLD + window.innerHeight;
         el2.scrollTo({
           left: maxX,
           top: maxY,
@@ -410,7 +415,7 @@ export function WorldComponent() {
 
   return (
     <>
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 z-1000 px-3 space-y-2 w-screen gap-4 flex items-center">
+      <div className="fixed py-2 top-0 left-1/2 -translate-x-1/2 z-1000 px-3 space-y-2 w-screen gap-4 flex items-start">
         <div className="grow"></div>
         <div>
           <input
@@ -420,7 +425,7 @@ export function WorldComponent() {
             className="mt-2 w-full border border-gray-300 rounded-full bg-white px-4 min-w-60 py-2 text-sm outline-none focus:border-blue-500"
           />
           {searchResults.length > 0 && (
-            <div className="max-h-64 overflow-auto bg-white border border-gray-200 shadow rounded divide-y divide-gray-100">
+            <div className="max-h-64 mt-2 overflow-auto bg-white border border-gray-200 shadow rounded divide-y divide-gray-100">
               {searchResults.map((thing) => (
                 <button
                   key={thing.id}
