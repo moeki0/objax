@@ -46,7 +46,8 @@ export function useThingInteractions({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!editor) {
+      const movable = fieldValue(thing, "movable");
+      if (!editor && !movable) {
         return;
       }
       const rect = e.currentTarget.getBoundingClientRect();
@@ -195,7 +196,8 @@ export function useThingInteractions({
 
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!editor) {
+      const movable = fieldValue(thing, "movable");
+      if (!editor && !movable) {
         return;
       }
       e.stopPropagation();
