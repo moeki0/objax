@@ -5,6 +5,8 @@ import { getValue } from "./get-value";
 import { load } from "./load";
 import { rewriteValueInCode } from "./rewrite-value-in-code";
 
+const globalStates: Record<string, number> = {};
+
 export function transition({
   things,
   transition,
@@ -28,9 +30,13 @@ export function transition({
   const states = transition.states.map((s) =>
     getValue(things, s, transition.field)
   );
-  const current = getValue(things, field.value, transition.field);
-  const idx = states.findIndex((v) => v === current);
+  const idx =
+    globalStates[transition.name.name] === undefined
+      ? -1
+      : globalStates[transition.name.name];
   const next = idx === -1 ? 0 : (idx + 1) % states.length;
+
+  globalStates[transition.name.name] = next;
 
   if ((field.value as any).value !== undefined) {
     (field.value as any).value = states[next];
