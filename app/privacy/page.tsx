@@ -132,7 +132,7 @@ export default function PrivacyPolicyPage() {
       <Section title="9. Contact">
         <p>
           If you have questions about this Privacy Policy, contact us at
-          privacy@objax.example.
+          hi@moeki.org .
         </p>
       </Section>
     </main>

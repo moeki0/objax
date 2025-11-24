@@ -15,7 +15,9 @@ function Section({
   return (
     <section className="space-y-2">
       <h2 className="text-xl font-semibold">{title}</h2>
-      <div className="space-y-2 text-sm leading-6 text-gray-700">{children}</div>
+      <div className="space-y-2 text-sm leading-6 text-gray-700">
+        {children}
+      </div>
     </section>
   );
 }
@@ -29,8 +31,8 @@ export default function TermsOfServicePage() {
         <p className="text-sm text-gray-600">
           These Terms of Service (&quot;Terms&quot;) govern your access to and
           use of the Objax products, services, and websites (collectively, the
-          &quot;Services&quot;). By accessing or using the Services, you agree to
-          be bound by these Terms.
+          &quot;Services&quot;). By accessing or using the Services, you agree
+          to be bound by these Terms.
         </p>
       </header>
 
@@ -63,9 +65,9 @@ export default function TermsOfServicePage() {
 
       <Section title="3. Prohibited Conduct">
         <p>
-          The following activities are strictly prohibited. These examples do not
-          limit any other restrictions described in these Terms or applicable
-          policies.
+          The following activities are strictly prohibited. These examples do
+          not limit any other restrictions described in these Terms or
+          applicable policies.
         </p>
         <ul className="list-disc list-inside space-y-1">
           <li>
@@ -104,8 +106,9 @@ export default function TermsOfServicePage() {
             permission.
           </li>
           <li>
-            Interfering with other users’ normal use of the Services, overloading
-            servers, or degrading performance, stability, or security.
+            Interfering with other users’ normal use of the Services,
+            overloading servers, or degrading performance, stability, or
+            security.
           </li>
           <li>
             Deception, harassment, defamation, hate speech, or any content that
@@ -144,31 +147,31 @@ export default function TermsOfServicePage() {
 
       <Section title="7. Disclaimers">
         <p>
-          The Services are provided &quot;as is&quot; and &quot;as available&quot;
-          without warranties of any kind, whether express, implied, or statutory,
-          including merchantability, fitness for a particular purpose, and
-          non-infringement. We do not warrant that the Services will be
-          uninterrupted, secure, or error-free.
+          The Services are provided &quot;as is&quot; and &quot;as
+          available&quot; without warranties of any kind, whether express,
+          implied, or statutory, including merchantability, fitness for a
+          particular purpose, and non-infringement. We do not warrant that the
+          Services will be uninterrupted, secure, or error-free.
         </p>
       </Section>
 
       <Section title="8. Limitation of Liability">
         <p>
           To the maximum extent permitted by law, neither we nor our suppliers
-          will be liable for any indirect, incidental, special, consequential, or
-          punitive damages, or for any loss of profits, revenues, data, or use,
-          arising out of or related to your use of the Services. Our aggregate
-          liability for all claims relating to the Services is limited to the
-          greater of USD $100 or the amounts you paid us in the 6 months before
-          the event giving rise to the claim.
+          will be liable for any indirect, incidental, special, consequential,
+          or punitive damages, or for any loss of profits, revenues, data, or
+          use, arising out of or related to your use of the Services. Our
+          aggregate liability for all claims relating to the Services is limited
+          to the greater of USD $100 or the amounts you paid us in the 6 months
+          before the event giving rise to the claim.
         </p>
       </Section>
 
       <Section title="9. Termination">
         <p>
-          We may suspend or terminate your access to the Services at any time for
-          any reason, including violation of these Terms. You may stop using the
-          Services at any time. Sections that by their nature should survive
+          We may suspend or terminate your access to the Services at any time
+          for any reason, including violation of these Terms. You may stop using
+          the Services at any time. Sections that by their nature should survive
           termination will remain in effect.
         </p>
       </Section>
@@ -176,16 +179,16 @@ export default function TermsOfServicePage() {
       <Section title="10. Changes to the Services or Terms">
         <p>
           We may modify the Services or these Terms at any time. If changes are
-          material, we will provide notice as required by law. Your continued use
-          of the Services after changes become effective constitutes acceptance
-          of the updated Terms.
+          material, we will provide notice as required by law. Your continued
+          use of the Services after changes become effective constitutes
+          acceptance of the updated Terms.
         </p>
       </Section>
 
       <Section title="11. Governing Law">
         <p>
-          These Terms are governed by the laws of the jurisdiction in which Objax
-          is organized, without regard to conflict of laws principles. Any
+          These Terms are governed by the laws of the jurisdiction in which
+          Objax is organized, without regard to conflict of laws principles. Any
           disputes will be resolved in the courts located in that jurisdiction,
           unless applicable law requires otherwise.
         </p>
@@ -193,8 +196,7 @@ export default function TermsOfServicePage() {
 
       <Section title="12. Contact">
         <p>
-          If you have questions about these Terms, contact us at
-          support@objax.example.
+          If you have questions about these Terms, contact us at hi@moeki.org .
         </p>
       </Section>
     </main>
