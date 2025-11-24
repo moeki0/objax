@@ -31,15 +31,15 @@ export function transition({
     getValue(things, s, transition.field)
   );
   const idx =
-    globalStates[transition.name.name] === undefined
+    globalStates[JSON.stringify(transition)] === undefined
       ? -1
-      : globalStates[transition.name.name];
+      : globalStates[JSON.stringify(transition)];
   const next = idx === -1 ? 0 : (idx + 1) % states.length;
 
-  globalStates[transition.name.name] = next;
+  globalStates[JSON.stringify(transition)] = next;
 
   if ((field.value as any).value !== undefined) {
-    (field.value as any).value = states[next];
+    (field.value as any).value = getValue(things, states[next] as any);
 
     const targetName = (transition.field.path[0] as Name).name;
     const targetField = (transition.field.path[1] as Name).name;

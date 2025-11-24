@@ -32,6 +32,7 @@ export function EditorComponent({
     const newCode = value || "";
     try {
       const result = load(newCode);
+      console.log(result);
       runtime.update({ id: thing.id, input: { ...result, code: newCode } });
       monacoRef.current?.editor.setModelMarkers(
         editorRef.current.getModel(),

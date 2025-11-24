@@ -26,6 +26,10 @@ export function rewriteValueInCode({
   };
 
   const replacement = `${field} is ${format(value)}`;
+  const textPattern = new RegExp(`^${field}\\s*is\\s*".+"$`, "m");
+  if (textPattern.test(code)) {
+    return code.replace(textPattern, replacement);
+  }
   const fieldPattern = new RegExp(`^${field}\\s*is\\s*.+\\..+$`, "m");
   if (fieldPattern.test(code)) {
     return code;
