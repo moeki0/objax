@@ -1,3 +1,5 @@
+import { format } from "./rewrite-value-in-code";
+
 export function rewriteFieldInCode({
   code,
   field,
@@ -7,8 +9,8 @@ export function rewriteFieldInCode({
   field: string;
   value: string;
 }) {
-  const escaped = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const replacement = `${field} is "${escaped}"`;
+  const escaped = format(value);
+  const replacement = `${field} is ${escaped}`;
   const pattern = new RegExp(`^${field}\\s*is\\s*.*$`, "m");
 
   if (pattern.test(code)) {

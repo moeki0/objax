@@ -1,11 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Name, Thing } from "../type";
+import { Thing } from "../type";
 import { action } from "./action";
 import { add } from "./add";
-import { getTransition } from "./get-transition";
 import { load } from "./load";
 import { render } from "./render";
-import { transition } from "./transition";
 import { World } from "./world";
 
 const FPS = 60;

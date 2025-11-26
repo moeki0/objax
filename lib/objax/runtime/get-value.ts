@@ -118,15 +118,23 @@ export function getValue(
       default:
         return undefined;
     }
-  } else if (t.type === "Constant") {
-    if (t.value === "pi") return Math.PI;
-    if (t.value === "e") return Math.E;
   } else if ((t as NameLiteral).type === "NameLiteral") {
     return (t as NameLiteral).value;
   } else if (t.type === "Reference") {
     // Built-in Time namespace support
     const ns = (t.path[0] as Name | undefined)?.name;
     const key = (t.path[1] as Name | undefined)?.name;
+    if (ns === "Math" && key) {
+      if (key === "random") {
+        return Math.round(Math.random() * 10);
+      }
+      if (key === "pi") {
+        return Math.PI;
+      }
+      if (key === "e") {
+        return Math.E;
+      }
+    }
     if (ns === "Time" && key) {
       const now = new Date();
       switch (key) {

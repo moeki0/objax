@@ -46,10 +46,6 @@ export function useThingInteractions({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      const movable = fieldValue(thing, "movable");
-      if (!editor && !movable) {
-        return;
-      }
       const rect = e.currentTarget.getBoundingClientRect();
       const startXInRect = e.clientX - rect.x;
       const startYInRect = e.clientY - rect.y;

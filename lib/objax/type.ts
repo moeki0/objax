@@ -113,7 +113,7 @@ export interface BlockType {
 
 export interface ConstantType {
   type: "Constant";
-  value: "pi" | "e";
+  value: "Math.pi" | "Math.e" | "Math.random";
 }
 
 export interface FunctionCallType {
