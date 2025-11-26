@@ -112,15 +112,28 @@ export function EditorComponent({
         >
           <IoCloseSharp />
         </button>
-        <button
-          onClick={() => {
-            setFreeze(!freeze);
-            setCurrentCode(thing.code);
-          }}
-          className="border border-gray-300 bg-white text-xs rounded px-1"
-        >
-          Freeze code
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setFreeze(!freeze);
+              setCurrentCode(thing.code);
+            }}
+            className="border border-gray-300 bg-white text-xs rounded px-1"
+          >
+            Freeze code
+          </button>
+          <button
+            onClick={() => {
+              const ok = window.confirm("Delete this thing?");
+              if (!ok) return;
+              runtime.remove({ id: thing.id });
+              setEditor(false);
+            }}
+            className="border border-red-300 text-red-600 bg-white text-xs rounded px-1"
+          >
+            Delete
+          </button>
+        </div>
       </div>
       <Editor
         theme="vs"

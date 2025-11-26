@@ -24,6 +24,7 @@ export interface Runtime {
   }) => void;
   handle: ({ thing, event }: { thing: Thing; event: string }) => void;
   update: ({ id, input }: { id: string; input: Partial<Thing> }) => void;
+  remove: ({ id }: { id: string }) => void;
   subscribe: (listener: Listener) => void;
   add: ({
     input,
@@ -42,7 +43,7 @@ export function runtime({ world }: { world: World }): Runtime {
   }: {
     upserts: any[];
     deletes: any[];
-  }) => Promise<void>;
+  }) => Promise<void> = async () => {};
   return {
     world,
     start: ({ onUpdate }) => {
@@ -64,6 +65,10 @@ export function runtime({ world }: { world: World }): Runtime {
         }
         return t;
       });
+    },
+    remove: ({ id }) => {
+      world.things = world.things.filter((t) => t.id !== id);
+      ou({ upserts: [], deletes: [id] });
     },
     handle: ({ thing, event }) => {
       if (!thing.eventActions) {

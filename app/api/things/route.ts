@@ -68,9 +68,7 @@ export async function POST(req: Request) {
     const upserts: Partial<Thing>[] = Array.isArray(body?.upserts)
       ? body.upserts
       : [];
-    const deletes: Partial<Thing>[] = Array.isArray(body?.deletes)
-      ? body.deletes
-      : [];
+    const deletes: string[] = Array.isArray(body?.deletes) ? body.deletes : [];
 
     const upsertIds = upserts
       .map((o) => (typeof (o as any)?.id === "string" ? (o as any).id : null))
@@ -155,11 +153,15 @@ export async function POST(req: Request) {
       });
     }
 
-    const deleteIds = deletes
-      .map((o) => (typeof o?.id === "string" ? o.id : null))
-      .filter(Boolean) as string[];
+    console.log(deletes);
+
+    const deleteIds = deletes;
     if (deleteIds.length) {
       await db.delete(thingsTable).where(inArray(thingsTable.id, deleteIds));
+      console.log("[objects] delete", {
+        deleteIds,
+        user: actor,
+      });
     }
 
     return NextResponse.json({ ok: true });
