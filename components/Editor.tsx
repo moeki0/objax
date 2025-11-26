@@ -36,7 +36,8 @@ export function EditorComponent({
     try {
       const result = load(newCode);
       const prompt = newCode.match(/dream is "(.+)"/)?.[1];
-      if (prompt) {
+      const prevPrompt = thing.code.match(/dream is "(.+)"/)?.[1];
+      if (prompt && prevPrompt !== prompt) {
         generate(prompt);
       }
       runtime.update({ id: thing.id, input: { ...result, code: newCode } });
