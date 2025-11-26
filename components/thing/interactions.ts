@@ -101,7 +101,6 @@ export function useThingInteractions({
           x: relX,
           y: relY,
         });
-        console.log(lastCodeRef.current, code);
         lastCodeRef.current = code;
         const result = load(code);
         runtime.update({ id: thing.id, input: { ...result, code } });
@@ -176,7 +175,6 @@ export function useThingInteractions({
       window.addEventListener("pointerup", handleUp);
     },
     [
-      editor,
       thing,
       fieldValue,
       parentLayout,
@@ -226,7 +224,7 @@ export function useThingInteractions({
       window.addEventListener("pointermove", handleMove);
       window.addEventListener("pointerup", handleUp);
     },
-    [runtime, thing, fieldValue, onLiveUpdate]
+    [fieldValue, thing, editor, runtime, onLiveUpdate]
   );
 
   return { handlePointerDown, handleResizePointerDown };
