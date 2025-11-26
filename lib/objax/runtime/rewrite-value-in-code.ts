@@ -1,7 +1,8 @@
 export const format = (v: unknown): string => {
   if (typeof v === "string") {
-    if (v.match(/\d+/)) {
-      return `${v}`;
+    const trimmed = v.trim();
+    if (trimmed.match(/^-?\d+(\.\d+)?$/)) {
+      return `${trimmed}`;
     }
     const escaped = v.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     return `"${escaped}"`;

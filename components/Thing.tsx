@@ -4,7 +4,7 @@
 import { Runtime } from "@/lib/objax/runtime";
 import { getField } from "@/lib/objax/runtime/get-field";
 import { Thing } from "@/lib/objax/type";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorComponent } from "./Editor";
 import { getValue } from "@/lib/objax/runtime/get-value";
 import { load } from "@/lib/objax/runtime/load";
@@ -12,6 +12,7 @@ import { rewriteFieldInCode } from "@/lib/objax/runtime/rewrite-field-in-code";
 import { Layout, LayoutMaps, useThingLayouts } from "./thing/layout";
 import { useThingInteractions } from "./thing/interactions";
 import { WORLD_OFFSET } from "./World";
+import { useDebouncedCallback } from "use-debounce";
 
 export function ThingComponent({
   things,
@@ -148,6 +149,29 @@ export function ThingComponent({
 
   const [focus, setFocus] = useState(false);
 
+  const generate = useDebouncedCallback(async (prompt: string) => {
+    try {
+      const res = await fetch("/api/dream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data?.url !== "string") {
+        throw new Error(data?.error || "Failed to generate image");
+      }
+      const newCode = rewriteFieldInCode({
+        code: thing.code,
+        field: "image",
+        value: data.url,
+      });
+      const loaded = load(newCode);
+      runtime.update({ id: thing.id, input: { ...loaded, code: newCode } });
+    } catch (err) {
+      console.error("[image] generation failed", err);
+    }
+  }, 1000);
+
   return (
     <>
       <EditorComponent
@@ -157,6 +181,7 @@ export function ThingComponent({
         editor={editor}
         setEditor={setEditor}
         worldOffset={worldOffset}
+        generate={generate}
       />
       {(isVisible || highlighted) && visibleThings.includes(thing) && (
         <div

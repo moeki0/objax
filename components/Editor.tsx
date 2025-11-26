@@ -8,6 +8,7 @@ import { Rnd } from "react-rnd";
 import Editor, { Monaco, OnChange, OnMount } from "@monaco-editor/react";
 import { Thing } from "@/lib/objax/type";
 import { IoCloseSharp } from "react-icons/io5";
+import { DebouncedState } from "use-debounce";
 
 export function EditorComponent({
   thing,
@@ -15,12 +16,14 @@ export function EditorComponent({
   editor,
   setEditor,
   worldOffset,
+  generate,
 }: {
   thing: Thing;
   runtime: Runtime;
   editor: boolean;
   setEditor: (editor: boolean) => void;
   worldOffset: { x: number; y: number };
+  generate: DebouncedState<(prompt: string) => Promise<void>>;
 }) {
   const [freeze, setFreeze] = useState(false);
   const [currentCode, setCurrentCode] = useState(thing.code);
@@ -32,7 +35,10 @@ export function EditorComponent({
     const newCode = value || "";
     try {
       const result = load(newCode);
-      console.log(result);
+      const prompt = newCode.match(/dream is "(.+)"/)?.[1];
+      if (prompt) {
+        generate(prompt);
+      }
       runtime.update({ id: thing.id, input: { ...result, code: newCode } });
       monacoRef.current?.editor.setModelMarkers(
         editorRef.current.getModel(),
