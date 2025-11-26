@@ -190,10 +190,6 @@ export function useThingInteractions({
 
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      const movable = fieldValue(thing, "movable");
-      if (!editor && !movable) {
-        return;
-      }
       e.stopPropagation();
       e.preventDefault();
       const startWidth = Number(fieldValue(thing, "width") ?? 0);
