@@ -17,6 +17,7 @@ export function EditorComponent({
   setEditor,
   worldOffset,
   generate,
+  highlighted,
 }: {
   thing: Thing;
   runtime: Runtime;
@@ -24,6 +25,7 @@ export function EditorComponent({
   setEditor: (editor: boolean) => void;
   worldOffset: { x: number; y: number };
   generate: DebouncedState<(prompt: string) => Promise<void>>;
+  highlighted: boolean;
 }) {
   const [freeze, setFreeze] = useState(false);
   const [currentCode, setCurrentCode] = useState(thing.code);
@@ -37,7 +39,7 @@ export function EditorComponent({
       const result = load(newCode);
       const prompt = newCode.match(/dream is "(.+)"/)?.[1];
       const prevPrompt = thing.code.match(/dream is "(.+)"/)?.[1];
-      console.log(prompt, prevPrompt)
+      console.log(prompt, prevPrompt);
       if (prompt && prevPrompt !== prompt) {
         generate(prompt);
       }
@@ -92,7 +94,7 @@ export function EditorComponent({
     };
   }, [thing, worldOffset.x, worldOffset.y]);
 
-  if (!editor) {
+  if (!editor && !highlighted) {
     return <></>;
   }
 

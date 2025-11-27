@@ -182,6 +182,7 @@ export function ThingComponent({
         setEditor={setEditor}
         worldOffset={worldOffset}
         generate={generate}
+        highlighted={highlighted}
       />
       {(isVisible || highlighted) && visibleThings.includes(thing) && (
         <div
